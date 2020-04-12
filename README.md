@@ -1,10 +1,10 @@
-<img src="https://files.ballistica.net/ballistica_media/ballistica_logo_half.png" height="50">
+<img src="https://files.ballistica.net/ballistica_media/ballistica_logo_half.png" height="50" alt="Ballistica Logo">
 
 ***bal·lis·tic***: physics of an object in motion; behaving like a projectile.
 
 ***-ica***: collection of things relating to a specific theme.
 
-![](https://github.com/efroemling/ballistica/workflows/CI/badge.svg)
+![GitHub workflow ci status](https://github.com/efroemling/ballistica/workflows/CI/badge.svg)
 
 The Ballistica project is the foundation for the next generation of [BombSquad](http://bombsquadgame.com). It will be debuting with the upcoming 1.5 release of the game and lays the foundation for some of the big changes coming in 2.0.
 
