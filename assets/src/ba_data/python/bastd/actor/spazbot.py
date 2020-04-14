@@ -251,8 +251,7 @@ class SpazBot(basespaz.Spaz):
                 self.node.move_up_down = 0.0
 
             # Otherwise try to go pick it up.
-            else:
-                assert self.target_flag.node
+            elif self.target_flag.node:
                 target_pt_raw = ba.Vec3(*self.target_flag.node.position)
                 diff = (target_pt_raw - our_pos)
                 diff = ba.Vec3(diff[0], 0, diff[2])  # Don't care about y.
