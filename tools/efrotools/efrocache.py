@@ -31,6 +31,8 @@ from __future__ import annotations
 import os
 import subprocess
 from typing import TYPE_CHECKING
+from multiprocessing import cpu_count
+from concurrent.futures import ThreadPoolExecutor
 
 if TYPE_CHECKING:
     from typing import List, Dict, Tuple, Set
@@ -200,6 +202,12 @@ def update_cache(makefile_dirs: List[str]) -> None:
             else:
                 fnames2.append(fullpath)
 
+    # if bool(True):
+    #     print("1", fnames1)
+    #     print("2", fnames2)
+    #     print('SO FAR SO GOOD')
+    #     sys.exit(0)
+
     staging_dir = 'build/efrocache'
     mapping_file = 'build/efrocachemap'
     run(f'rm -rf {staging_dir}')
@@ -220,6 +228,57 @@ def update_cache(makefile_dirs: List[str]) -> None:
         ' "cd files.ballistica.net/cache/ba1 && python3 genstartercache.py"')
 
     print(f'Cache update successful!')
+
+
+def _write_cache_files(fnames1: List[str], fnames2: List[str],
+                       staging_dir: str, mapping_file: str) -> None:
+    fhashes1: Set[str] = set()
+    import functools
+    import json
+    mapping: Dict[str, str] = {}
+    call = functools.partial(_write_cache_file, staging_dir)
+
+    # Do the first set.
+    with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
+        results = executor.map(call, fnames1)
+    for result in results:
+        mapping[result[0]] = BASE_URL + result[1]
+        fhashes1.add(result[1])
+
+    # We want the server to have a startercache.tar.xz file which contains
+    # this entire first set. It is much more efficient to build that file
+    # on the server than it is to build it here and upload the whole thing.
+    # ...so let's simply write a script to generate it and upload that.
+
+    script = (
+        'import os\n'
+        'import subprocess\n'
+        'fnames = ' + repr(fhashes1) + '\n'
+        'subprocess.run(["rm", "-rf", "efrocache"], check=True)\n'
+        'print("Copying starter cache files...", flush=True)\n'
+        'for fname in fnames:\n'
+        '    dst = os.path.join("efrocache", fname)\n'
+        '    os.makedirs(os.path.dirname(dst), exist_ok=True)\n'
+        '    subprocess.run(["cp", fname, dst], check=True)\n'
+        'print("Compressing starter cache archive...", flush=True)\n'
+        'subprocess.run(["tar", "-Jcf", "tmp.tar.xz", "efrocache"],'
+        ' check=True)\n'
+        'subprocess.run(["mv", "tmp.tar.xz", "startercache.tar.xz"],'
+        ' check=True)\n'
+        'subprocess.run(["rm", "-rf", "efrocache", "genstartercache.py"])\n'
+        'print("Starter cache generation complete!", flush=True)\n')
+
+    with open('build/efrocache/genstartercache.py', 'w') as outfile:
+        outfile.write(script)
+
+    # Now finish up with the second set.
+    with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
+        results = executor.map(call, fnames2)
+        for result in results:
+            mapping[result[0]] = BASE_URL + result[1]
+
+    with open(mapping_file, 'w') as outfile:
+        outfile.write(json.dumps(mapping, indent=2, sort_keys=True))
 
 
 def _write_cache_file(staging_dir: str, fname: str) -> Tuple[str, str]:
@@ -248,62 +307,6 @@ def _write_cache_file(staging_dir: str, fname: str) -> Tuple[str, str]:
     return fname, hashpath
 
 
-def _write_cache_files(fnames1: List[str], fnames2: List[str],
-                       staging_dir: str, mapping_file: str) -> None:
-    # pylint: disable=too-many-locals
-    fhashes1: Set[str] = set()
-    from multiprocessing import cpu_count
-    from concurrent.futures import ThreadPoolExecutor
-    import functools
-    import json
-    mapping: Dict[str, str] = {}
-    call = functools.partial(_write_cache_file, staging_dir)
-
-    # Do the first set.
-    with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
-        results = executor.map(call, fnames1)
-    for result in results:
-        mapping[result[0]] = BASE_URL + result[1]
-        fhashes1.add(result[1])
-
-    # We want the server to have a startercache.tar.xz file which contains
-    # this entire first set. It is much more efficient to build that file
-    # on the server than it is to build it here and upload the whole thing.
-    # ...so let's simply write a script to generate it and upload that.
-
-    # yapf: disable
-    script = (
-        'import os\n'
-        'import subprocess\n'
-        'fnames = ' + repr(fhashes1) + '\n'
-        'subprocess.run(["rm", "-rf", "efrocache"], check=True)\n'
-        'print("Copying starter cache files...", flush=True)\n'
-        'for fname in fnames:\n'
-        '    dst = os.path.join("efrocache", fname)\n'
-        '    os.makedirs(os.path.dirname(dst), exist_ok=True)\n'
-        '    subprocess.run(["cp", fname, dst], check=True)\n'
-        'print("Compressing starter cache archive...", flush=True)\n'
-        'subprocess.run(["tar", "-Jcf", "tmp.tar.xz", "efrocache"],'
-        ' check=True)\n'
-        'subprocess.run(["mv", "tmp.tar.xz", "startercache.tar.xz"],'
-        ' check=True)\n'
-        'subprocess.run(["rm", "-rf", "efrocache", "genstartercache.py"])\n'
-        'print("Starter cache generation complete!", flush=True)\n')
-    # yapf: enable
-
-    with open('build/efrocache/genstartercache.py', 'w') as outfile:
-        outfile.write(script)
-
-    # Now finish up with the second set.
-    with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
-        results = executor.map(call, fnames2)
-        for result in results:
-            mapping[result[0]] = BASE_URL + result[1]
-
-    with open(mapping_file, 'w') as outfile:
-        outfile.write(json.dumps(mapping, indent=2, sort_keys=True))
-
-
 def _check_warm_start_entry(entry: Tuple[str, str]) -> None:
     import hashlib
     fname, filehash = entry
@@ -320,8 +323,6 @@ def _check_warm_start_entry(entry: Tuple[str, str]) -> None:
 
 
 def _check_warm_start_entries(entries: List[Tuple[str, str]]) -> None:
-    from multiprocessing import cpu_count
-    from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
         # Converting this to a list pulls results and propagates errors)
         list(executor.map(_check_warm_start_entry, entries))
