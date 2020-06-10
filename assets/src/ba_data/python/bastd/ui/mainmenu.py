@@ -402,8 +402,8 @@ class MainMenuWindow(ba.Window):
                 scale=3.0 * t_scale)
 
     def _refresh_not_in_game(
-        self, positions: List[Tuple[float, float, float]]
-    ) -> Tuple[float, float, float]:
+        self, positions: List[Tuple[float, float,
+                                    float]]) -> Tuple[float, float, float]:
         # pylint: disable=too-many-branches
         # pylint: disable=too-many-locals
         # pylint: disable=too-many-statements
@@ -659,8 +659,8 @@ class MainMenuWindow(ba.Window):
         return h, v, scale
 
     def _refresh_in_game(
-        self, positions: List[Tuple[float, float, float]]
-    ) -> Tuple[float, float, float]:
+        self, positions: List[Tuple[float, float,
+                                    float]]) -> Tuple[float, float, float]:
         # pylint: disable=too-many-branches
         # pylint: disable=too-many-locals
         # pylint: disable=too-many-statements
@@ -673,8 +673,8 @@ class MainMenuWindow(ba.Window):
                     if (not isinstance(cme, dict) or 'label' not in cme
                             or not isinstance(cme['label'], (str, ba.Lstr))
                             or 'call' not in cme or not callable(cme['call'])):
-                        raise Exception("invalid custom menu entry: " +
-                                        str(cme))
+                        raise ValueError('invalid custom menu entry: ' +
+                                         str(cme))
             except Exception:
                 custom_menu_entries = []
                 ba.print_exception('exception getting custom menu entries for',
@@ -708,7 +708,7 @@ class MainMenuWindow(ba.Window):
 
         # Player name if applicable.
         if self._input_player:
-            player_name = self._input_player.get_name()
+            player_name = self._input_player.getname()
             h, v, scale = positions[self._p_index]
             v += 35
             ba.textwidget(parent=self._root_widget,

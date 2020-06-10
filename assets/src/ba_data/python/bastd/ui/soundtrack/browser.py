@@ -88,8 +88,8 @@ class SoundtrackBrowserWindow(ba.Window):
                       maxwidth=300,
                       text=ba.Lstr(resource=self._r + '.titleText'),
                       color=ba.app.title_color,
-                      h_align="center",
-                      v_align="center")
+                      h_align='center',
+                      v_align='center')
 
         h = 43 + x_inset
         v = self._height - 60
@@ -261,7 +261,7 @@ class SoundtrackBrowserWindow(ba.Window):
         else:
             confirm.ConfirmWindow(
                 ba.Lstr(resource=self._r + '.deleteConfirmText',
-                        subs=[("${NAME}", self._selected_soundtrack)]),
+                        subs=[('${NAME}', self._selected_soundtrack)]),
                 self._do_delete_soundtrack, 450, 150)
 
     def _duplicate_soundtrack(self) -> None:
@@ -311,7 +311,7 @@ class SoundtrackBrowserWindow(ba.Window):
         self._refresh(select_soundtrack=test_name)
 
     def _select(self, name: str, index: int) -> None:
-        from ba.internal import do_play_music
+        music = ba.app.music
         self._selected_soundtrack_index = index
         self._selected_soundtrack = name
         cfg = ba.app.config
@@ -322,9 +322,10 @@ class SoundtrackBrowserWindow(ba.Window):
             ba.playsound(ba.getsound('gunCocking'))
             cfg['Soundtrack'] = self._selected_soundtrack
             cfg.commit()
+
             # Just play whats already playing.. this'll grab it from the
             # new soundtrack.
-            do_play_music(ba.app.music_types[ba.MusicPlayMode.REGULAR])
+            music.do_play_music(music.music_types[ba.MusicPlayMode.REGULAR])
 
     def _back(self) -> None:
         # pylint: disable=cyclic-import
@@ -484,7 +485,7 @@ class SoundtrackBrowserWindow(ba.Window):
             elif sel == self._back_button:
                 sel_name = 'Back'
             else:
-                raise Exception("unrecognized selection")
+                raise ValueError(f'unrecognized selection \'{sel}\'')
             ba.app.window_states[self.__class__.__name__] = sel_name
         except Exception:
             ba.print_exception('error saving state for', self.__class__)

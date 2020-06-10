@@ -23,6 +23,39 @@
 from enum import Enum
 
 
+class InputType(Enum):
+    """Types of input a controller can send to the game.
+
+    Category: Enums
+
+    """
+    UP_DOWN = 2
+    LEFT_RIGHT = 3
+    JUMP_PRESS = 4
+    JUMP_RELEASE = 5
+    PUNCH_PRESS = 6
+    PUNCH_RELEASE = 7
+    BOMB_PRESS = 8
+    BOMB_RELEASE = 9
+    PICK_UP_PRESS = 10
+    PICK_UP_RELEASE = 11
+    RUN = 12
+    FLY_PRESS = 13
+    FLY_RELEASE = 14
+    START_PRESS = 15
+    START_RELEASE = 16
+    HOLD_POSITION_PRESS = 17
+    HOLD_POSITION_RELEASE = 18
+    LEFT_PRESS = 19
+    LEFT_RELEASE = 20
+    RIGHT_PRESS = 21
+    RIGHT_RELEASE = 22
+    UP_PRESS = 23
+    UP_RELEASE = 24
+    DOWN_PRESS = 25
+    DOWN_RELEASE = 26
+
+
 class TimeType(Enum):
     """Specifies the type of time for various operations to target/use.
 

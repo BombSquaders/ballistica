@@ -38,6 +38,7 @@ class PlaylistTypeVars:
         from ba.internal import (get_default_teams_playlist,
                                  get_default_free_for_all_playlist)
         self.sessiontype: Type[ba.Session]
+
         if issubclass(sessiontype, ba.DualTeamSession):
             play_mode_name = ba.Lstr(resource='playModes.teamsText',
                                      fallback_resource='teamsText')
@@ -47,6 +48,7 @@ class PlaylistTypeVars:
             self.window_title_name = ba.Lstr(resource='playModes.teamsText',
                                              fallback_resource='teamsText')
             self.sessiontype = ba.DualTeamSession
+
         elif issubclass(sessiontype, ba.FreeForAllSession):
             play_mode_name = ba.Lstr(resource='playModes.freeForAllText',
                                      fallback_resource='freeForAllText')
@@ -57,9 +59,10 @@ class PlaylistTypeVars:
                 resource='playModes.freeForAllText',
                 fallback_resource='freeForAllText')
             self.sessiontype = ba.FreeForAllSession
+
         else:
-            raise Exception('playlist type vars undefined for session type: ' +
-                            str(sessiontype))
+            raise RuntimeError(
+                f'Playlist type vars undefined for sessiontype: {sessiontype}')
         self.default_list_name = ba.Lstr(resource='defaultGameListNameText',
                                          subs=[('${PLAYMODE}', play_mode_name)
                                                ])

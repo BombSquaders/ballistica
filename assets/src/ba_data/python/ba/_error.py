@@ -22,7 +22,6 @@
 
 from __future__ import annotations
 
-import sys
 from typing import TYPE_CHECKING
 
 import _ba
@@ -30,16 +29,6 @@ import _ba
 if TYPE_CHECKING:
     from typing import Any, List
     import ba
-
-
-class _UnhandledType:
-    pass
-
-
-# A special value that should be returned from handlemessage()
-# functions for unhandled message types.  This may result
-# in fallback message types being attempted/etc.
-UNHANDLED = _UnhandledType()
 
 
 class DependencyError(Exception):
@@ -60,6 +49,16 @@ class DependencyError(Exception):
         return self._deps
 
 
+class ContextError(Exception):
+    """Exception raised when a call is made in an invalid context.
+
+    category: Exception Classes
+
+    Examples of this include calling UI functions within an Activity context
+    or calling scene manipulation functions outside of a game context.
+    """
+
+
 class NotFoundError(Exception):
     """Exception raised when a referenced object does not exist.
 
@@ -74,8 +73,29 @@ class PlayerNotFoundError(NotFoundError):
     """
 
 
+class SessionPlayerNotFoundError(NotFoundError):
+    """Exception raised when an expected ba.SessionPlayer does not exist.
+
+    category: Exception Classes
+    """
+
+
 class TeamNotFoundError(NotFoundError):
     """Exception raised when an expected ba.Team does not exist.
+
+    category: Exception Classes
+    """
+
+
+class DelegateNotFoundError(NotFoundError):
+    """Exception raised when an expected delegate object does not exist.
+
+    category: Exception Classes
+    """
+
+
+class SessionTeamNotFoundError(NotFoundError):
+    """Exception raised when an expected ba.SessionTeam does not exist.
 
     category: Exception Classes
     """
@@ -123,19 +143,6 @@ class WidgetNotFoundError(NotFoundError):
     """
 
 
-def exc_str() -> str:
-    """Returns a tidied up string for the current exception.
-
-    This performs some minor cleanup such as printing paths relative
-    to script dirs (full paths are often unwieldy in game installs).
-    """
-    import traceback
-    excstr = traceback.format_exc()
-    for path in sys.path:
-        excstr = excstr.replace(path + '/', '')
-    return excstr
-
-
 def print_exception(*args: Any, **keywds: Any) -> None:
     """Print info about an exception along with pertinent context state.
 
@@ -150,31 +157,25 @@ def print_exception(*args: Any, **keywds: Any) -> None:
     if keywds:
         allowed_keywds = ['once']
         if any(keywd not in allowed_keywds for keywd in keywds):
-            raise Exception("invalid keyword(s)")
+            raise TypeError('invalid keyword(s)')
     try:
         # If we're only printing once and already have, bail.
         if keywds.get('once', False):
             if not _ba.do_once():
                 return
 
-        # Most tracebacks are gonna have ugly long install directories in them;
-        # lets strip those out when we can.
         err_str = ' '.join([str(a) for a in args])
         print('ERROR:', err_str)
         _ba.print_context()
         print('PRINTED-FROM:')
 
-        # Basically the output of traceback.print_stack() slightly prettified:
+        # Basically the output of traceback.print_stack()
         stackstr = ''.join(traceback.format_stack())
-        for path in sys.path:
-            stackstr = stackstr.replace(path + '/', '')
         print(stackstr, end='')
         print('EXCEPTION:')
 
-        # Basically the output of traceback.print_exc() slightly prettified:
+        # Basically the output of traceback.print_exc()
         excstr = traceback.format_exc()
-        for path in sys.path:
-            excstr = excstr.replace(path + '/', '')
         print('\n'.join('  ' + l for l in excstr.splitlines()))
     except Exception:
         # I suppose using print_exception here would be a bad idea.
@@ -199,15 +200,11 @@ def print_error(err_str: str, once: bool = False) -> None:
             if not _ba.do_once():
                 return
 
-        # Most tracebacks are gonna have ugly long install directories in them;
-        # lets strip those out when we can.
         print('ERROR:', err_str)
         _ba.print_context()
 
-        # Basically the output of traceback.print_stack() slightly prettified:
+        # Basically the output of traceback.print_stack()
         stackstr = ''.join(traceback.format_stack())
-        for path in sys.path:
-            stackstr = stackstr.replace(path + '/', '')
         print(stackstr, end='')
     except Exception:
         print('ERROR: exception in ba.print_error():')

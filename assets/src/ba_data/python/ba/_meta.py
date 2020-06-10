@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 # The meta api version of this build of the game.
 # Only packages and modules requiring this exact api version
 # will be considered when scanning directories.
-# See: https://github.com/efroemling/ballistica/wiki/Meta-Tags
+# See: https://ballistica.net/wiki/Meta-Tags
 CURRENT_API_VERSION = 6
 
 
@@ -56,7 +56,7 @@ def start_scan() -> None:
     app = _ba.app
     if app.metascan is not None:
         print('WARNING: meta scan run more than once.')
-    scriptdirs = [app.system_scripts_directory, app.user_scripts_directory]
+    scriptdirs = [app.python_directory_app, app.python_directory_user]
     thread = ScanThread(scriptdirs)
     thread.start()
 
@@ -162,9 +162,10 @@ class DirectoryScan:
             try:
                 self.scan_module(moduledir, subpath)
             except Exception:
-                from ba import _error
+                import traceback
                 self.results.warnings += ("Error scanning '" + str(subpath) +
-                                          "': " + _error.exc_str() + '\n')
+                                          "': " + traceback.format_exc() +
+                                          '\n')
 
     def scan_module(self, moduledir: pathlib.Path,
                     subpath: pathlib.Path) -> None:
@@ -207,9 +208,9 @@ class DirectoryScan:
                 for submodule in submodules:
                     self.scan_module(submodule[0], submodule[1])
             except Exception:
-                from ba import _error
+                import traceback
                 self.results.warnings += (
-                    f"Error scanning '{subpath}': {_error.exc_str()}\n")
+                    f"Error scanning '{subpath}': {traceback.format_exc()}\n")
 
     def _process_module_meta_tags(self, subpath: pathlib.Path,
                                   flines: List[str],
@@ -270,7 +271,7 @@ class DirectoryScan:
                 cbits = lbits[1].split('(')
                 if len(cbits) > 1 and cbits[0].isidentifier():
                     classname = cbits[0]
-                    break  # success!
+                    break  # Success!
         if classname is None:
             self.results.warnings += (
                 'Warning: ' + str(subpath) + ': class definition not found'
@@ -290,7 +291,7 @@ class DirectoryScan:
             and l[1] == 'require' and l[2] == 'api' and l[3].isdigit()
         ]
 
-        # we're successful if we find exactly one properly formatted line
+        # We're successful if we find exactly one properly formatted line.
         if len(lines) == 1:
             return int(lines[0][3])
 
@@ -325,7 +326,8 @@ def get_scan_results() -> ScanResults:
         while app.metascan is None:
             time.sleep(0.05)
             if time.time() - starttime > 10.0:
-                raise Exception('timeout waiting for meta scan to complete.')
+                raise TimeoutError(
+                    'timeout waiting for meta scan to complete.')
     return app.metascan
 
 
@@ -351,7 +353,7 @@ def get_unowned_game_types() -> Set[Type[ba.GameActivity]]:
     try:
         from ba import _store
         unowned_games: Set[Type[ba.GameActivity]] = set()
-        if _ba.app.subplatform != 'headless':
+        if not _ba.app.headless_build:
             for section in _store.get_store_layout()['minigames']:
                 for mname in section['items']:
                     if not _ba.get_purchased(mname):
@@ -360,5 +362,5 @@ def get_unowned_game_types() -> Set[Type[ba.GameActivity]]:
         return unowned_games
     except Exception:
         from ba import _error
-        _error.print_exception("error calcing un-owned games")
+        _error.print_exception('error calcing un-owned games')
         return set()

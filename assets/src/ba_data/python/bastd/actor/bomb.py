@@ -26,12 +26,19 @@
 from __future__ import annotations
 
 import random
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 import ba
+from bastd.gameutils import SharedObjects
 
 if TYPE_CHECKING:
-    from typing import Any, Sequence, Optional, Callable, List, Tuple
+    from typing import Any, Sequence, Optional, Callable, List, Tuple, Type
+
+# Attr we store these objects as on the current activity.
+# (based on our module so hopefully avoids conflicts)
+STORAGE_ATTR_NAME = '_' + __name__.replace('.', '_') + '_bombfactory'
+
+PlayerType = TypeVar('PlayerType', bound='ba.Player')
 
 
 class BombFactory:
@@ -143,6 +150,17 @@ class BombFactory:
           ba.Sound for a rolling bomb.
     """
 
+    @staticmethod
+    def get() -> BombFactory:
+        """Get/create a shared bastd.actor.bomb.BombFactory object."""
+        activity = ba.getactivity()
+        factory = getattr(activity, STORAGE_ATTR_NAME, None)
+        if factory is None:
+            factory = BombFactory()
+            setattr(activity, STORAGE_ATTR_NAME, factory)
+        assert isinstance(factory, BombFactory)
+        return factory
+
     def random_explode_sound(self) -> ba.Sound:
         """Return a random explosion ba.Sound from the factory."""
         return self.explode_sounds[random.randrange(len(self.explode_sounds))]
@@ -153,6 +171,7 @@ class BombFactory:
         You shouldn't need to do this; call bastd.actor.bomb.get_factory()
         to get a shared instance.
         """
+        shared = SharedObjects.get()
 
         self.bomb_model = ba.getmodel('bomb')
         self.sticky_bomb_model = ba.getmodel('bombSticky')
@@ -184,24 +203,31 @@ class BombFactory:
         self.activate_sound = ba.getsound('activateBeep')
         self.warn_sound = ba.getsound('warnBeep')
 
-        # set up our material so new bombs don't collide with objects
-        # that they are initially overlapping
+        # Set up our material so new bombs don't collide with objects
+        # that they are initially overlapping.
         self.bomb_material = ba.Material()
         self.normal_sound_material = ba.Material()
         self.sticky_material = ba.Material()
 
         self.bomb_material.add_actions(
-            conditions=((('we_are_younger_than', 100), 'or',
-                         ('they_are_younger_than', 100)),
-                        'and', ('they_have_material',
-                                ba.sharedobj('object_material'))),
-            actions=('modify_node_collision', 'collide', False))
+            conditions=(
+                (
+                    ('we_are_younger_than', 100),
+                    'or',
+                    ('they_are_younger_than', 100),
+                ),
+                'and',
+                ('they_have_material', shared.object_material),
+            ),
+            actions=('modify_node_collision', 'collide', False),
+        )
 
-        # we want pickup materials to always hit us even if we're currently not
-        # colliding with their node (generally due to the above rule)
+        # We want pickup materials to always hit us even if we're currently
+        # not colliding with their node. (generally due to the above rule)
         self.bomb_material.add_actions(
-            conditions=('they_have_material', ba.sharedobj('pickup_material')),
-            actions=('modify_part_collision', 'use_node_collide', False))
+            conditions=('they_have_material', shared.pickup_material),
+            actions=('modify_part_collision', 'use_node_collide', False),
+        )
 
         self.bomb_material.add_actions(actions=('modify_part_collision',
                                                 'friction', 0.3))
@@ -209,48 +235,67 @@ class BombFactory:
         self.land_mine_no_explode_material = ba.Material()
         self.land_mine_blast_material = ba.Material()
         self.land_mine_blast_material.add_actions(
-            conditions=(('we_are_older_than',
-                         200), 'and', ('they_are_older_than',
-                                       200), 'and', ('eval_colliding', ),
-                        'and', (('they_dont_have_material',
-                                 self.land_mine_no_explode_material), 'and',
-                                (('they_have_material',
-                                  ba.sharedobj('object_material')), 'or',
-                                 ('they_have_material',
-                                  ba.sharedobj('player_material'))))),
-            actions=('message', 'our_node', 'at_connect', ImpactMessage()))
+            conditions=(
+                ('we_are_older_than', 200),
+                'and',
+                ('they_are_older_than', 200),
+                'and',
+                ('eval_colliding', ),
+                'and',
+                (
+                    ('they_dont_have_material',
+                     self.land_mine_no_explode_material),
+                    'and',
+                    (
+                        ('they_have_material', shared.object_material),
+                        'or',
+                        ('they_have_material', shared.player_material),
+                    ),
+                ),
+            ),
+            actions=('message', 'our_node', 'at_connect', ImpactMessage()),
+        )
 
         self.impact_blast_material = ba.Material()
         self.impact_blast_material.add_actions(
-            conditions=(('we_are_older_than',
-                         200), 'and', ('they_are_older_than',
-                                       200), 'and', ('eval_colliding', ),
-                        'and', (('they_have_material',
-                                 ba.sharedobj('footing_material')), 'or',
-                                ('they_have_material',
-                                 ba.sharedobj('object_material')))),
-            actions=('message', 'our_node', 'at_connect', ImpactMessage()))
+            conditions=(
+                ('we_are_older_than', 200),
+                'and',
+                ('they_are_older_than', 200),
+                'and',
+                ('eval_colliding', ),
+                'and',
+                (
+                    ('they_have_material', shared.footing_material),
+                    'or',
+                    ('they_have_material', shared.object_material),
+                ),
+            ),
+            actions=('message', 'our_node', 'at_connect', ImpactMessage()),
+        )
 
         self.blast_material = ba.Material()
         self.blast_material.add_actions(
-            conditions=(('they_have_material',
-                         ba.sharedobj('object_material'))),
-            actions=(('modify_part_collision', 'collide', True),
-                     ('modify_part_collision', 'physical',
-                      False), ('message', 'our_node', 'at_connect',
-                               ExplodeHitMessage())))
+            conditions=('they_have_material', shared.object_material),
+            actions=(
+                ('modify_part_collision', 'collide', True),
+                ('modify_part_collision', 'physical', False),
+                ('message', 'our_node', 'at_connect', ExplodeHitMessage()),
+            ),
+        )
 
         self.dink_sounds = (ba.getsound('bombDrop01'),
                             ba.getsound('bombDrop02'))
         self.sticky_impact_sound = ba.getsound('stickyImpact')
         self.roll_sound = ba.getsound('bombRoll01')
 
-        # collision sounds
+        # Collision sounds.
         self.normal_sound_material.add_actions(
-            conditions=('they_have_material',
-                        ba.sharedobj('footing_material')),
-            actions=(('impact_sound', self.dink_sounds, 2, 0.8),
-                     ('roll_sound', self.roll_sound, 3, 6)))
+            conditions=('they_have_material', shared.footing_material),
+            actions=(
+                ('impact_sound', self.dink_sounds, 2, 0.8),
+                ('roll_sound', self.roll_sound, 3, 6),
+            ))
 
         self.sticky_material.add_actions(actions=(('modify_part_collision',
                                                    'stiffness', 0.1),
@@ -258,27 +303,13 @@ class BombFactory:
                                                    'damping', 1.0)))
 
         self.sticky_material.add_actions(
-            conditions=(('they_have_material',
-                         ba.sharedobj('player_material')),
-                        'or', ('they_have_material',
-                               ba.sharedobj('footing_material'))),
-            actions=('message', 'our_node', 'at_connect', SplatMessage()))
-
-
-# noinspection PyTypeHints
-def get_factory() -> BombFactory:
-    """Get/create a shared bastd.actor.bomb.BombFactory object."""
-    activity = ba.getactivity()
-
-    # FIXME: Need to figure out an elegant way to store
-    #  shared actor data with an activity.
-    factory: BombFactory
-    try:
-        factory = activity.shared_bomb_factory  # type: ignore
-    except Exception:
-        factory = activity.shared_bomb_factory = BombFactory()  # type: ignore
-    assert isinstance(factory, BombFactory)
-    return factory
+            conditions=(
+                ('they_have_material', shared.player_material),
+                'or',
+                ('they_have_material', shared.footing_material),
+            ),
+            actions=('message', 'our_node', 'at_connect', SplatMessage()),
+        )
 
 
 class SplatMessage:
@@ -304,9 +335,6 @@ class WarnMessage:
 class ExplodeHitMessage:
     """Tell an object it was hit by an explosion."""
 
-    def __init__(self) -> None:
-        pass
-
 
 class Blast(ba.Actor):
     """An explosion, as generated by a bomb or some other object.
@@ -318,7 +346,7 @@ class Blast(ba.Actor):
                  position: Sequence[float] = (0.0, 1.0, 0.0),
                  velocity: Sequence[float] = (0.0, 0.0, 0.0),
                  blast_radius: float = 2.0,
-                 blast_type: str = "normal",
+                 blast_type: str = 'normal',
                  source_player: ba.Player = None,
                  hit_type: str = 'explosion',
                  hit_subtype: str = 'normal'):
@@ -330,39 +358,40 @@ class Blast(ba.Actor):
 
         super().__init__()
 
-        factory = get_factory()
+        shared = SharedObjects.get()
+        factory = BombFactory.get()
 
         self.blast_type = blast_type
-        self.source_player = source_player
+        self._source_player = source_player
         self.hit_type = hit_type
         self.hit_subtype = hit_subtype
         self.radius = blast_radius
 
-        # set our position a bit lower so we throw more things upward
-        rmats = (factory.blast_material, ba.sharedobj('attack_material'))
-        self.node = ba.newnode('region',
-                               delegate=self,
-                               attrs={
-                                   'position': (position[0], position[1] - 0.1,
-                                                position[2]),
-                                   'scale':
-                                       (self.radius, self.radius, self.radius),
-                                   'type': 'sphere',
-                                   'materials': rmats
-                               })
+        # Set our position a bit lower so we throw more things upward.
+        rmats = (factory.blast_material, shared.attack_material)
+        self.node = ba.newnode(
+            'region',
+            delegate=self,
+            attrs={
+                'position': (position[0], position[1] - 0.1, position[2]),
+                'scale': (self.radius, self.radius, self.radius),
+                'type': 'sphere',
+                'materials': rmats
+            },
+        )
 
         ba.timer(0.05, self.node.delete)
 
-        # throw in an explosion and flash
+        # Throw in an explosion and flash.
         evel = (velocity[0], max(-1.0, velocity[1]), velocity[2])
-        explosion = ba.newnode("explosion",
+        explosion = ba.newnode('explosion',
                                attrs={
                                    'position': position,
                                    'velocity': evel,
                                    'radius': self.radius,
                                    'big': (self.blast_type == 'tnt')
                                })
-        if self.blast_type == "ice":
+        if self.blast_type == 'ice':
             explosion.color = (0, 0.05, 0.4)
 
         ba.timer(1.0, explosion.delete)
@@ -382,7 +411,7 @@ class Blast(ba.Actor):
                   emit_type='distortion',
                   spread=1.0 if self.blast_type == 'tnt' else 2.0)
 
-        # and emit some shrapnel..
+        # And emit some shrapnel.
         if self.blast_type == 'ice':
 
             def emit() -> None:
@@ -394,7 +423,7 @@ class Blast(ba.Actor):
                           chunk_type='ice',
                           emit_type='stickers')
 
-            # looks better if we delay a bit
+            # It looks better if we delay a bit.
             ba.timer(0.05, emit)
 
         elif self.blast_type == 'sticky':
@@ -430,10 +459,10 @@ class Blast(ba.Actor):
                           spread=1.5,
                           chunk_type='spark')
 
-            # looks better if we delay a bit
+            # It looks better if we delay a bit.
             ba.timer(0.05, emit)
 
-        elif self.blast_type == 'impact':  # regular bomb shrapnel
+        elif self.blast_type == 'impact':
 
             def emit() -> None:
                 ba.emitfx(position=position,
@@ -459,10 +488,10 @@ class Blast(ba.Actor):
                           spread=1.5,
                           chunk_type='spark')
 
-            # looks better if we delay a bit
+            # It looks better if we delay a bit.
             ba.timer(0.05, emit)
 
-        else:  # regular or land mine bomb shrapnel
+        else:  # Regular or land mine bomb shrapnel.
 
             def emit() -> None:
                 if self.blast_type != 'tnt':
@@ -488,7 +517,7 @@ class Blast(ba.Actor):
                           spread=1.5,
                           chunk_type='spark')
 
-                # tnt throws splintery chunks
+                # TNT throws splintery chunks.
                 if self.blast_type == 'tnt':
 
                     def emit_splinters() -> None:
@@ -501,7 +530,7 @@ class Blast(ba.Actor):
 
                     ba.timer(0.01, emit_splinters)
 
-                # every now and then do a sparky one
+                # Every now and then do a sparky one.
                 if self.blast_type == 'tnt' or random.random() < 0.1:
 
                     def emit_extra_sparks() -> None:
@@ -514,7 +543,7 @@ class Blast(ba.Actor):
 
                     ba.timer(0.02, emit_extra_sparks)
 
-            # looks better if we delay a bit
+            # It looks better if we delay a bit.
             ba.timer(0.05, emit)
 
         lcolor = ((0.6, 0.6, 1.0) if self.blast_type == 'ice' else
@@ -535,7 +564,7 @@ class Blast(ba.Actor):
 
         iscale = 1.6
         ba.animate(
-            light, "intensity", {
+            light, 'intensity', {
                 0: 2.0 * iscale,
                 scl * 0.02: 0.1 * iscale,
                 scl * 0.025: 0.2 * iscale,
@@ -547,7 +576,7 @@ class Blast(ba.Actor):
                 scl * 3.0: 0.0
             })
         ba.animate(
-            light, "radius", {
+            light, 'radius', {
                 0: light_radius * 0.2,
                 scl * 0.05: light_radius * 0.55,
                 scl * 0.1: light_radius * 0.3,
@@ -556,7 +585,7 @@ class Blast(ba.Actor):
             })
         ba.timer(scl * 3.0, light.delete)
 
-        # make a scorch that fades over time
+        # Make a scorch that fades over time.
         scorch = ba.newnode('scorch',
                             attrs={
                                 'position': position,
@@ -566,7 +595,7 @@ class Blast(ba.Actor):
         if self.blast_type == 'ice':
             scorch.color = (1, 1, 1.5)
 
-        ba.animate(scorch, "presence", {3.000: 1, 13.000: 0})
+        ba.animate(scorch, 'presence', {3.000: 1, 13.000: 0})
         ba.timer(13.0, scorch.delete)
 
         if self.blast_type == 'ice':
@@ -578,7 +607,7 @@ class Blast(ba.Actor):
 
         ba.camerashake(intensity=5.0 if self.blast_type == 'tnt' else 1.0)
 
-        # tnt is more epic..
+        # TNT is more epic.
         if self.blast_type == 'tnt':
             ba.playsound(factory.random_explode_sound(), position=lpos)
 
@@ -594,44 +623,41 @@ class Blast(ba.Actor):
             ba.timer(0.4, _extra_debris_sound)
 
     def handlemessage(self, msg: Any) -> Any:
-        if __debug__:
-            self._handlemessage_sanity_check()
+        assert not self.expired
 
         if isinstance(msg, ba.DieMessage):
             if self.node:
                 self.node.delete()
 
         elif isinstance(msg, ExplodeHitMessage):
-            node = ba.get_collision_info("opposing_node")
-            if node:
-                assert self.node
-                nodepos = self.node.position
+            node = ba.getcollision().opposingnode
+            assert self.node
+            nodepos = self.node.position
+            mag = 2000.0
+            if self.blast_type == 'ice':
+                mag *= 0.5
+            elif self.blast_type == 'land_mine':
+                mag *= 2.5
+            elif self.blast_type == 'tnt':
+                mag *= 2.0
 
-                # new
-                mag = 2000.0
-                if self.blast_type == 'ice':
-                    mag *= 0.5
-                elif self.blast_type == 'land_mine':
-                    mag *= 2.5
-                elif self.blast_type == 'tnt':
-                    mag *= 2.0
-
-                node.handlemessage(
-                    ba.HitMessage(pos=nodepos,
-                                  velocity=(0, 0, 0),
-                                  magnitude=mag,
-                                  hit_type=self.hit_type,
-                                  hit_subtype=self.hit_subtype,
-                                  radius=self.radius,
-                                  source_player=self.source_player))
-                if self.blast_type == "ice":
-                    ba.playsound(get_factory().freeze_sound,
-                                 10,
-                                 position=nodepos)
-                    node.handlemessage(ba.FreezeMessage())
+            node.handlemessage(
+                ba.HitMessage(pos=nodepos,
+                              velocity=(0, 0, 0),
+                              magnitude=mag,
+                              hit_type=self.hit_type,
+                              hit_subtype=self.hit_subtype,
+                              radius=self.radius,
+                              source_player=ba.existing(self._source_player)))
+            if self.blast_type == 'ice':
+                ba.playsound(BombFactory.get().freeze_sound,
+                             10,
+                             position=nodepos)
+                node.handlemessage(ba.FreezeMessage())
 
         else:
-            super().handlemessage(msg)
+            return super().handlemessage(msg)
+        return None
 
 
 class Bomb(ba.Actor):
@@ -640,7 +666,7 @@ class Bomb(ba.Actor):
     category: Gameplay Classes
     """
 
-    # Ew; should try to clean this up later
+    # Ew; should try to clean this up later.
     # pylint: disable=too-many-locals
     # pylint: disable=too-many-branches
     # pylint: disable=too-many-statements
@@ -660,11 +686,12 @@ class Bomb(ba.Actor):
         """
         super().__init__()
 
-        factory = get_factory()
+        shared = SharedObjects.get()
+        factory = BombFactory.get()
 
         if bomb_type not in ('ice', 'impact', 'land_mine', 'normal', 'sticky',
                              'tnt'):
-            raise Exception("invalid bomb type: " + bomb_type)
+            raise ValueError('invalid bomb type: ' + bomb_type)
         self.bomb_type = bomb_type
 
         self._exploded = False
@@ -686,34 +713,27 @@ class Bomb(ba.Actor):
 
         self._explode_callbacks: List[Callable[[Bomb, Blast], Any]] = []
 
-        # the player this came from
-        self.source_player = source_player
+        # The player this came from.
+        self._source_player = source_player
 
-        # by default our hit type/subtype is our own, but we pick up types of
-        # whoever sets us off so we know what caused a chain reaction
+        # By default our hit type/subtype is our own, but we pick up types of
+        # whoever sets us off so we know what caused a chain reaction.
         self.hit_type = 'explosion'
         self.hit_subtype = self.bomb_type
 
-        # if no owner was provided, use an unconnected node ref
-        # (nevermind; trying to use None in these type cases instead)
-        # if owner is None:
-        #     owner = ba.Node(None)
-
-        # the node this came from
+        # The node this came from.
         self.owner = owner
 
-        # adding footing-materials to things can screw up jumping and flying
-        # since players carrying those things
-        # and thus touching footing objects will think they're on solid
-        # ground.. perhaps we don't wanna add this even in the tnt case?..
+        # Adding footing-materials to things can screw up jumping and flying
+        # since players carrying those things and thus touching footing
+        # objects will think they're on solid ground.. perhaps we don't
+        # wanna add this even in the tnt case?
         materials: Tuple[ba.Material, ...]
         if self.bomb_type == 'tnt':
-            materials = (factory.bomb_material,
-                         ba.sharedobj('footing_material'),
-                         ba.sharedobj('object_material'))
+            materials = (factory.bomb_material, shared.footing_material,
+                         shared.object_material)
         else:
-            materials = (factory.bomb_material,
-                         ba.sharedobj('object_material'))
+            materials = (factory.bomb_material, shared.object_material)
 
         if self.bomb_type == 'impact':
             materials = materials + (factory.impact_blast_material, )
@@ -828,17 +848,19 @@ class Bomb(ba.Actor):
             ba.timer(fuse_time,
                      ba.WeakCall(self.handlemessage, ExplodeMessage()))
 
-        ba.animate(self.node, "model_scale", {0: 0, 0.2: 1.3, 0.26: 1})
+        ba.animate(self.node, 'model_scale', {0: 0, 0.2: 1.3, 0.26: 1})
 
-    def get_source_player(self) -> Optional[ba.Player]:
-        """Returns a ba.Player representing the source of this bomb.
-
-        Be prepared for values of None or invalid Player refs."""
-        return self.source_player
+    def get_source_player(
+            self, playertype: Type[PlayerType]) -> Optional[PlayerType]:
+        """Return the source-player if one exists and is the provided type."""
+        player: Any = self._source_player
+        return (player if isinstance(player, playertype) and player.exists()
+                else None)
 
     def on_expire(self) -> None:
         super().on_expire()
-        # release callbacks/refs so we don't wind up with dependency loops..
+
+        # Release callbacks/refs so we don't wind up with dependency loops.
         self._explode_callbacks = []
 
     def _handle_die(self) -> None:
@@ -849,20 +871,18 @@ class Bomb(ba.Actor):
         self.handlemessage(ba.DieMessage())
 
     def _handle_impact(self) -> None:
-        node = ba.get_collision_info("opposing_node")
-        # if we're an impact bomb and we came from this node, don't explode...
+        node = ba.getcollision().opposingnode
+
+        # If we're an impact bomb and we came from this node, don't explode...
         # alternately if we're hitting another impact-bomb from the same
         # source, don't explode...
-        try:
-            node_delegate = node.getdelegate()
-        except Exception:
-            node_delegate = None
+        # try:
+        node_delegate = node.getdelegate(object)
         if node:
-            if (self.bomb_type == 'impact'
-                    and (node is self.owner or
-                         (isinstance(node_delegate, Bomb)
-                          and node_delegate.bomb_type == 'impact'
-                          and node_delegate.owner is self.owner))):
+            if (self.bomb_type == 'impact' and
+                (node is self.owner or
+                 (isinstance(node_delegate, Bomb) and node_delegate.bomb_type
+                  == 'impact' and node_delegate.owner is self.owner))):
                 return
             self.handlemessage(ExplodeMessage())
 
@@ -871,24 +891,22 @@ class Bomb(ba.Actor):
             self.arm_timer = ba.Timer(
                 1.25, ba.WeakCall(self.handlemessage, ArmMessage()))
 
-        # once we've thrown a sticky bomb we can stick to it..
+        # Once we've thrown a sticky bomb we can stick to it.
         elif self.bomb_type == 'sticky':
 
-            def _safesetattr(node: Optional[ba.Node], attr: str,
-                             value: Any) -> None:
+            def _setsticky(node: ba.Node) -> None:
                 if node:
-                    setattr(node, attr, value)
+                    node.stick_to_owner = True
 
-            ba.timer(0.25,
-                     lambda: _safesetattr(self.node, 'stick_to_owner', True))
+            ba.timer(0.25, lambda: _setsticky(self.node))
 
     def _handle_splat(self) -> None:
-        node = ba.get_collision_info("opposing_node")
+        node = ba.getcollision().opposingnode
         if (node is not self.owner
                 and ba.time() - self._last_sticky_sound_time > 1.0):
             self._last_sticky_sound_time = ba.time()
             assert self.node
-            ba.playsound(get_factory().sticky_impact_sound,
+            ba.playsound(BombFactory.get().sticky_impact_sound,
                          2.0,
                          position=self.node.position)
 
@@ -904,26 +922,25 @@ class Bomb(ba.Actor):
         if self._exploded:
             return
         self._exploded = True
-        activity = self.getactivity()
-        if activity is not None and self.node:
+        if self.node:
             blast = Blast(position=self.node.position,
                           velocity=self.node.velocity,
                           blast_radius=self.blast_radius,
                           blast_type=self.bomb_type,
-                          source_player=self.source_player,
+                          source_player=ba.existing(self._source_player),
                           hit_type=self.hit_type,
                           hit_subtype=self.hit_subtype).autoretain()
             for callback in self._explode_callbacks:
                 callback(self, blast)
 
-        # we blew up so we need to go away
-        # FIXME; was there a reason we need this delay?
+        # We blew up so we need to go away.
+        # NOTE TO SELF: do we actually need this delay?
         ba.timer(0.001, ba.WeakCall(self.handlemessage, ba.DieMessage()))
 
     def _handle_warn(self) -> None:
         if self.texture_sequence and self.node:
             self.texture_sequence.rate = 30
-            ba.playsound(get_factory().warn_sound,
+            ba.playsound(BombFactory.get().warn_sound,
                          0.5,
                          position=self.node.position)
 
@@ -942,7 +959,7 @@ class Bomb(ba.Actor):
         """
         if not self.node:
             return
-        factory = get_factory()
+        factory = BombFactory.get()
         intex: Sequence[ba.Texture]
         if self.bomb_type == 'land_mine':
             intex = (factory.land_mine_lit_tex, factory.land_mine_tex)
@@ -953,6 +970,7 @@ class Bomb(ba.Actor):
                                                    'input_textures': intex
                                                })
             ba.timer(0.5, self.texture_sequence.delete)
+
             # We now make it explodable.
             ba.timer(
                 0.25,
@@ -988,8 +1006,9 @@ class Bomb(ba.Actor):
             # Also lets change the owner of the bomb to whoever is setting
             # us off. (this way points for big chain reactions go to the
             # person causing them).
-            if msg.source_player not in [None]:
-                self.source_player = msg.source_player
+            source_player = msg.get_source_player(ba.Player)
+            if source_player is not None:
+                self._source_player = source_player
 
                 # Also inherit the hit type (if a landmine sets off by a bomb,
                 # the credit should go to the mine)
@@ -1002,7 +1021,7 @@ class Bomb(ba.Actor):
                      ba.WeakCall(self.handlemessage, ExplodeMessage()),
                      timeformat=ba.TimeFormat.MILLISECONDS)
         assert self.node
-        self.node.handlemessage("impulse", msg.pos[0], msg.pos[1], msg.pos[2],
+        self.node.handlemessage('impulse', msg.pos[0], msg.pos[1], msg.pos[2],
                                 msg.velocity[0], msg.velocity[1],
                                 msg.velocity[2], msg.magnitude,
                                 msg.velocity_magnitude, msg.radius, 0,
@@ -1017,12 +1036,14 @@ class Bomb(ba.Actor):
             self.explode()
         elif isinstance(msg, ImpactMessage):
             self._handle_impact()
-        elif isinstance(msg, ba.PickedUpMessage):
-            # change our source to whoever just picked us up *only* if its None
-            # this way we can get points for killing bots with their own bombs
-            # hmm would there be a downside to this?...
-            if self.source_player is not None:
-                self.source_player = msg.node.source_player
+        # Ok the logic below looks like it was backwards to me.
+        # Disabling for now; can bring back if need be.
+        # elif isinstance(msg, ba.PickedUpMessage):
+        #     # Change our source to whoever just picked us up *only* if it
+        #     # is None. This way we can get points for killing bots with their
+        #     # own bombs. Hmm would there be a downside to this?
+        #     if self._source_player is not None:
+        #         self._source_player = msg.node.source_player
         elif isinstance(msg, SplatMessage):
             self._handle_splat()
         elif isinstance(msg, ba.DroppedMessage):

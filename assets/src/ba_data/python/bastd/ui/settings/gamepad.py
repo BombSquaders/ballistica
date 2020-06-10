@@ -39,7 +39,7 @@ class GamepadSettingsWindow(ba.Window):
                  is_main_menu: bool = True,
                  transition: str = 'in_right',
                  transition_out: str = 'out_right',
-                 settings: Dict[str, Any] = None):
+                 settings: dict = None):
         self._input = gamepad
 
         # If this fails, our input device went away or something;
@@ -204,8 +204,8 @@ class GamepadSettingsWindow(ba.Window):
                           text=ba.Lstr(resource=self._r + '.titleText'),
                           color=ba.app.title_color,
                           maxwidth=310,
-                          h_align="center",
-                          v_align="center")
+                          h_align='center',
+                          v_align='center')
             v -= 48
 
             ba.textwidget(parent=self._root_widget,
@@ -214,8 +214,8 @@ class GamepadSettingsWindow(ba.Window):
                           text=self._name,
                           color=ba.app.infotextcolor,
                           maxwidth=self._width * 0.9,
-                          h_align="center",
-                          v_align="center")
+                          h_align='center',
+                          v_align='center')
             v -= self._spacing * 1
 
             ba.textwidget(parent=self._root_widget,
@@ -237,8 +237,8 @@ class GamepadSettingsWindow(ba.Window):
                           text=ba.Lstr(resource=self._r + '.secondaryText'),
                           color=ba.app.title_color,
                           maxwidth=300,
-                          h_align="center",
-                          v_align="center")
+                          h_align='center',
+                          v_align='center')
             v -= self._spacing * 1
 
             ba.textwidget(parent=self._root_widget,
@@ -478,7 +478,7 @@ class GamepadSettingsWindow(ba.Window):
         """(internal)"""
         assert self._settings is not None
         if not self._is_secondary:
-            raise Exception("enable value only applies to secondary editor")
+            raise Exception('enable value only applies to secondary editor')
         return self._settings.get('enableSecondary', False)
 
     def show_secondary_editor(self) -> None:
@@ -497,13 +497,11 @@ class GamepadSettingsWindow(ba.Window):
 
             # This actually shows both LR and UD.
             sval1 = (self._settings['analogStickLR' +
-                                    self._ext] if 'analogStickLR' +
-                     self._ext in self._settings else
-                     5 if self._is_secondary else 1)
+                                    self._ext] if 'analogStickLR' + self._ext
+                     in self._settings else 5 if self._is_secondary else 1)
             sval2 = (self._settings['analogStickUD' +
-                                    self._ext] if 'analogStickUD' +
-                     self._ext in self._settings else
-                     6 if self._is_secondary else 2)
+                                    self._ext] if 'analogStickUD' + self._ext
+                     in self._settings else 6 if self._is_secondary else 2)
             return self._input.get_axis_name(
                 sval1) + ' / ' + self._input.get_axis_name(sval2)
 
@@ -769,13 +767,13 @@ class AwaitGamepadInputWindow(ba.Window):
     """Window for capturing a gamepad button press."""
 
     def __init__(
-        self,
-        gamepad: ba.InputDevice,
-        button: str,
-        callback: Callable[[str, Dict[str, Any], AwaitGamepadInputWindow],
-                           Any],
-        message: ba.Lstr = None,
-        message2: ba.Lstr = None):
+            self,
+            gamepad: ba.InputDevice,
+            button: str,
+            callback: Callable[[str, Dict[str, Any], AwaitGamepadInputWindow],
+                               Any],
+            message: ba.Lstr = None,
+            message2: ba.Lstr = None):
         if message is None:
             print('AwaitGamepadInputWindow message is None!')
             message = ba.Lstr(
@@ -795,8 +793,8 @@ class AwaitGamepadInputWindow(ba.Window):
                       size=(width, 25),
                       text=message,
                       maxwidth=width * 0.9,
-                      h_align="center",
-                      v_align="center")
+                      h_align='center',
+                      v_align='center')
         if message2 is not None:
             ba.textwidget(parent=self._root_widget,
                           position=(width * 0.5, height - 60),
@@ -805,8 +803,8 @@ class AwaitGamepadInputWindow(ba.Window):
                           maxwidth=width * 0.9,
                           scale=0.47,
                           color=(0.7, 1.0, 0.7, 0.6),
-                          h_align="center",
-                          v_align="center")
+                          h_align='center',
+                          v_align='center')
         self._counter = 5
         self._count_down_text = ba.textwidget(parent=self._root_widget,
                                               h_align='center',
@@ -838,7 +836,7 @@ class AwaitGamepadInputWindow(ba.Window):
         assert isinstance(input_device, ba.InputDevice)
 
         # Update - we now allow *any* input device of this type.
-        if input_device.exists and input_device.name == self._input.name:
+        if input_device.exists() and input_device.name == self._input.name:
             self._callback(self._capture_button, event, self)
 
     def _decrement(self) -> None:

@@ -24,15 +24,22 @@ from __future__ import annotations
 
 import datetime
 import time
+import weakref
 from typing import TYPE_CHECKING, cast, TypeVar, Generic
 
 if TYPE_CHECKING:
     import asyncio
-    from typing import Any, Dict, Callable, Optional
+    from weakref import ReferenceType
+    from typing import Any, Dict, Callable, Optional, Type
 
+T = TypeVar('T')
 TVAL = TypeVar('TVAL')
 TARG = TypeVar('TARG')
 TRET = TypeVar('TRET')
+
+
+class _EmptyObj:
+    pass
 
 
 def utc_now() -> datetime.datetime:
@@ -44,6 +51,16 @@ def utc_now() -> datetime.datetime:
     which makes it less safe to use)
     """
     return datetime.datetime.now(datetime.timezone.utc)
+
+
+# noinspection PyUnresolvedReferences
+def empty_weakref(objtype: Type[T]) -> ReferenceType[T]:
+    """Return an invalidated weak-reference for the specified type."""
+    # At runtime, all weakrefs are the same; our type arg is just
+    # for the static type checker.
+    del objtype  # Unused.
+    # Just create an object and let it die. Is there a cleaner way to do this?
+    return weakref.ref(_EmptyObj())  # type: ignore
 
 
 def data_size_str(bytecount: int) -> str:
@@ -83,10 +100,10 @@ class DispatchMethodWrapper(Generic[TARG, TRET]):
     registry: Dict[Any, Callable]
 
 
-# noinspection PyTypeHints, PyProtectedMember
+# noinspection PyProtectedMember,PyTypeHints
 def dispatchmethod(
-    func: Callable[[Any, TARG], TRET]
-) -> DispatchMethodWrapper[TARG, TRET]:
+        func: Callable[[Any, TARG],
+                       TRET]) -> DispatchMethodWrapper[TARG, TRET]:
     """A variation of functools.singledispatch for methods."""
     from functools import singledispatch, update_wrapper
     origwrapper: Any = singledispatch(func)
@@ -250,8 +267,8 @@ class ValueDispatcher(Generic[TVAL, TRET]):
 
 
 def valuedispatch1arg(
-    call: Callable[[TVAL, TARG], TRET]
-) -> ValueDispatcher1Arg[TVAL, TARG, TRET]:
+    call: Callable[[TVAL, TARG],
+                   TRET]) -> ValueDispatcher1Arg[TVAL, TARG, TRET]:
     """Like valuedispatch but for functions taking an extra argument."""
     return ValueDispatcher1Arg(call)
 

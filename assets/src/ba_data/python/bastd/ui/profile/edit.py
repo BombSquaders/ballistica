@@ -41,7 +41,7 @@ class EditProfileWindow(ba.Window):
         """Transitions out and recreates ourself."""
         ba.containerwidget(edit=self._root_widget, transition='out_left')
         ba.app.main_menu_window = EditProfileWindow(
-            self.get_name(), self._in_main_menu).get_root_widget()
+            self.getname(), self._in_main_menu).get_root_widget()
 
     def __init__(self,
                  existing_profile: Optional[str],
@@ -103,8 +103,8 @@ class EditProfileWindow(ba.Window):
                       color=ba.app.title_color,
                       maxwidth=290,
                       scale=1.0,
-                      h_align="center",
-                      v_align="center")
+                      h_align='center',
+                      v_align='center')
 
         # Make a list of spaz icons.
         self.refresh_characters()
@@ -546,7 +546,7 @@ class EditProfileWindow(ba.Window):
         elif picker_type == 'highlight':
             initial_color = self._highlight
         else:
-            raise Exception("invalid picker_type: " + picker_type)
+            raise ValueError('invalid picker_type: ' + picker_type)
         colorpicker.ColorPicker(
             parent=self._root_widget,
             position=origin,
@@ -605,7 +605,7 @@ class EditProfileWindow(ba.Window):
     def _update_clipped_name(self) -> None:
         if not self._clipped_name_text:
             return
-        name = self.get_name()
+        name = self.getname()
         if name == '__account__':
             name = (_ba.get_account_name()
                     if _ba.get_account_state() == 'signed_in' else '???')
@@ -630,7 +630,7 @@ class EditProfileWindow(ba.Window):
         if self._icon_button_label:
             ba.textwidget(edit=self._icon_button_label, text=self._icon)
 
-    def get_name(self) -> str:
+    def getname(self) -> str:
         """Return the current profile name value."""
         if self._is_account_profile:
             new_name = '__account__'
@@ -643,7 +643,7 @@ class EditProfileWindow(ba.Window):
     def save(self, transition_out: bool = True) -> bool:
         """Save has been selected."""
         from bastd.ui.profile import browser as pbrowser
-        new_name = self.get_name().strip()
+        new_name = self.getname().strip()
 
         if not new_name:
             ba.screenmessage(ba.Lstr(resource='nameNotEmptyText'))
@@ -669,10 +669,10 @@ class EditProfileWindow(ba.Window):
             'name': new_name,
             'profile': {
                 'character': self._spazzes[self._icon_index],
-                'color': self._color,
+                'color': list(self._color),
                 'global': self._global,
                 'icon': self._icon,
-                'highlight': self._highlight
+                'highlight': list(self._highlight)
             }
         })
 

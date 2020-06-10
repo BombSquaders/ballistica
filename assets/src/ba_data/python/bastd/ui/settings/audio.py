@@ -40,9 +40,10 @@ class AudioSettingsWindow(ba.Window):
         # pylint: disable=too-many-statements
         # pylint: disable=too-many-locals
         # pylint: disable=cyclic-import
-        from ba.internal import have_music_player, music_volume_changed
-        from bastd.ui import popup as popup_ui
-        from bastd.ui import config as cfgui
+        from bastd.ui.popup import PopupMenu
+        from bastd.ui.config import ConfigNumberEdit
+
+        music = ba.app.music
 
         # If they provided an origin-widget, scale up from that.
         scale_origin: Optional[Tuple[float, float]]
@@ -60,8 +61,8 @@ class AudioSettingsWindow(ba.Window):
         width = 460.0
         height = 210.0
 
-        # Update: hard-coding head-relative audio to true now, so not showing
-        # options.
+        # Update: hard-coding head-relative audio to true now,
+        # so not showing options.
         # show_vr_head_relative_audio = True if ba.app.vr_mode else False
         show_vr_head_relative_audio = False
 
@@ -69,7 +70,7 @@ class AudioSettingsWindow(ba.Window):
             height += 70
 
         show_soundtracks = False
-        if have_music_player():
+        if music.have_music_player():
             show_soundtracks = True
             height += spacing * 2.0
 
@@ -103,19 +104,19 @@ class AudioSettingsWindow(ba.Window):
                       text=ba.Lstr(resource=self._r + '.titleText'),
                       color=ba.app.title_color,
                       maxwidth=180,
-                      h_align="center",
-                      v_align="center")
+                      h_align='center',
+                      v_align='center')
 
         ba.buttonwidget(edit=self._back_button,
                         button_type='backSmall',
                         size=(60, 60),
                         label=ba.charstr(ba.SpecialChar.BACK))
 
-        self._sound_volume_numedit = svne = cfgui.ConfigNumberEdit(
+        self._sound_volume_numedit = svne = ConfigNumberEdit(
             parent=self._root_widget,
             position=(40, v),
             xoffset=10,
-            configkey="Sound Volume",
+            configkey='Sound Volume',
             displayname=ba.Lstr(resource=self._r + '.soundVolumeText'),
             minval=0.0,
             maxval=1.0,
@@ -124,16 +125,16 @@ class AudioSettingsWindow(ba.Window):
             ba.widget(edit=svne.plusbutton,
                       right_widget=_ba.get_special_widget('party_button'))
         v -= spacing
-        self._music_volume_numedit = cfgui.ConfigNumberEdit(
+        self._music_volume_numedit = ConfigNumberEdit(
             parent=self._root_widget,
             position=(40, v),
             xoffset=10,
-            configkey="Music Volume",
+            configkey='Music Volume',
             displayname=ba.Lstr(resource=self._r + '.musicVolumeText'),
             minval=0.0,
             maxval=1.0,
             increment=0.1,
-            callback=music_volume_changed,
+            callback=music.music_volume_changed,
             changesound=False)
 
         v -= 0.5 * spacing
@@ -148,10 +149,10 @@ class AudioSettingsWindow(ba.Window):
                                        '.headRelativeVRAudioText'),
                           color=(0.8, 0.8, 0.8),
                           maxwidth=230,
-                          h_align="left",
-                          v_align="center")
+                          h_align='left',
+                          v_align='center')
 
-            popup = popup_ui.PopupMenu(
+            popup = PopupMenu(
                 parent=self._root_widget,
                 position=(290, v),
                 width=120,
@@ -175,8 +176,8 @@ class AudioSettingsWindow(ba.Window):
                           color=(0.7, 0.8, 0.7),
                           maxwidth=400,
                           flatness=1.0,
-                          h_align="center",
-                          v_align="center")
+                          h_align='center',
+                          v_align='center')
             v -= 30
         else:
             self._vr_head_relative_audio_button = None
@@ -265,7 +266,7 @@ class AudioSettingsWindow(ba.Window):
             elif sel == self._vr_head_relative_audio_button:
                 sel_name = 'VRHeadRelative'
             else:
-                raise Exception("unrecognized selected widget")
+                raise ValueError(f'unrecognized selection \'{sel}\'')
             ba.app.window_states[self.__class__.__name__] = sel_name
         except Exception:
             ba.print_exception('error saving state for', self.__class__)

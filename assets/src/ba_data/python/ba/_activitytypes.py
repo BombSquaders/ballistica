@@ -21,12 +21,15 @@
 """Some handy base class and special purpose Activity types."""
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING
 
 import _ba
 from ba._activity import Activity
 from ba._music import setmusic, MusicType
+from ba._enums import InputType
+# False-positive from pylint due to our class-generics-filter.
+from ba._player import EmptyPlayer  # pylint: disable=W0611
+from ba._team import EmptyTeam  # pylint: disable=W0611
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Optional
@@ -34,17 +37,17 @@ if TYPE_CHECKING:
     from ba._lobby import JoinInfo
 
 
-class EndSessionActivity(Activity):
+class EndSessionActivity(Activity[EmptyPlayer, EmptyTeam]):
     """Special ba.Activity to fade out and end the current ba.Session."""
 
-    def __init__(self, settings: Dict[str, Any]):
+    def __init__(self, settings: dict):
         super().__init__(settings)
 
-        # Keeps prev activity alive while we fadeout.
+        # Keeps prev activity alive while we fade out.
         self.transition_time = 0.25
         self.inherits_tint = True
         self.inherits_slow_motion = True
-        self.inherits_camera_vr_offset = True
+        self.inherits_vr_camera_offset = True
         self.inherits_vr_overlay_center = True
 
     def on_transition_in(self) -> None:
@@ -62,13 +65,13 @@ class EndSessionActivity(Activity):
         call_after_ad(Call(_ba.new_host_session, MainMenuSession))
 
 
-class JoinActivity(Activity):
+class JoinActivity(Activity[EmptyPlayer, EmptyTeam]):
     """Standard activity for waiting for players to join.
 
     It shows tips and other info and waits for all players to check ready.
     """
 
-    def __init__(self, settings: Dict[str, Any]):
+    def __init__(self, settings: dict):
         super().__init__(settings)
 
         # This activity is a special 'joiner' activity.
@@ -99,22 +102,22 @@ class JoinActivity(Activity):
         _ba.set_analytics_screen('Joining Screen')
 
 
-class TransitionActivity(Activity):
-    """A simple overlay fade out/in.
+class TransitionActivity(Activity[EmptyPlayer, EmptyTeam]):
+    """A simple overlay to fade out/in.
 
     Useful as a bare minimum transition between two level based activities.
     """
 
-    def __init__(self, settings: Dict[str, Any]):
-        super().__init__(settings)
+    # Keep prev activity alive while we fade in.
+    transition_time = 0.5
+    inherits_slow_motion = True  # Don't change.
+    inherits_tint = True  # Don't change.
+    inherits_vr_camera_offset = True  # Don't change.
+    inherits_vr_overlay_center = True
+    use_fixed_vr_overlay = True
 
-        # Keep prev activity alive while we fade in.
-        self.transition_time = 0.5
-        self.inherits_slow_motion = True  # Don't change.
-        self.inherits_tint = True  # Don't change.
-        self.inherits_camera_vr_offset = True  # Don't change.
-        self.inherits_vr_overlay_center = True
-        self.use_fixed_vr_overlay = True
+    def __init__(self, settings: dict):
+        super().__init__(settings)
         self._background: Optional[ba.Actor] = None
 
     def on_transition_in(self) -> None:
@@ -132,39 +135,41 @@ class TransitionActivity(Activity):
         _ba.timer(0.1, self.end)
 
 
-class ScoreScreenActivity(Activity):
+class ScoreScreenActivity(Activity[EmptyPlayer, EmptyTeam]):
     """A standard score screen that fades in and shows stuff for a while.
 
     After a specified delay, player input is assigned to end the activity.
     """
 
-    def __init__(self, settings: Dict[str, Any]):
+    transition_time = 0.5
+    inherits_tint = True
+    inherits_vr_camera_offset = True
+    use_fixed_vr_overlay = True
+
+    default_music: Optional[MusicType] = MusicType.SCORES
+
+    def __init__(self, settings: dict):
         super().__init__(settings)
-        self.transition_time = 0.5
-        self.inherits_tint = True
-        self.inherits_camera_vr_offset = True
-        self.use_fixed_vr_overlay = True
-        self.default_music: Optional[MusicType] = MusicType.SCORES
         self._birth_time = _ba.time()
         self._min_view_time = 5.0
-        self._allow_server_restart = False
+        self._allow_server_transition = False
         self._background: Optional[ba.Actor] = None
         self._tips_text: Optional[ba.Actor] = None
         self._kicked_off_server_shutdown = False
         self._kicked_off_server_restart = False
         self._default_show_tips = True
         self._custom_continue_message: Optional[ba.Lstr] = None
+        self._server_transitioning: Optional[bool] = None
 
-    def on_player_join(self, player: ba.Player) -> None:
-        from ba import _general
+    def on_player_join(self, player: EmptyPlayer) -> None:
+        from ba._general import WeakCall
         super().on_player_join(player)
         time_till_assign = max(
             0, self._birth_time + self._min_view_time - _ba.time())
 
         # If we're still kicking at the end of our assign-delay, assign this
         # guy's input to trigger us.
-        _ba.timer(time_till_assign, _general.WeakCall(self._safe_assign,
-                                                      player))
+        _ba.timer(time_till_assign, WeakCall(self._safe_assign, player))
 
     def on_transition_in(self) -> None:
         from bastd.actor.tipstext import TipsText
@@ -207,62 +212,25 @@ class ScoreScreenActivity(Activity):
 
     def _player_press(self) -> None:
 
-        # If we're running in server-mode and it wants to shut down
-        # or restart, this is a good place to do it
-        if self._handle_server_restarts():
+        # If this activity is a good 'end point', ask server-mode just once if
+        # it wants to do anything special like switch sessions or kill the app.
+        if (self._allow_server_transition and _ba.app.server is not None
+                and self._server_transitioning is None):
+            self._server_transitioning = _ba.app.server.handle_transition()
+            assert isinstance(self._server_transitioning, bool)
+
+        # If server-mode is handling this, don't do anything ourself.
+        if self._server_transitioning is True:
             return
+
+        # Otherwise end the activity normally.
         self.end()
 
-    def _safe_assign(self, player: ba.Player) -> None:
+    def _safe_assign(self, player: EmptyPlayer) -> None:
 
         # Just to be extra careful, don't assign if we're transitioning out.
-        # (though theoretically that would be ok).
+        # (though theoretically that should be ok).
         if not self.is_transitioning_out() and player:
-            player.assign_input_call(
-                ('jumpPress', 'punchPress', 'bombPress', 'pickUpPress'),
-                self._player_press)
-
-    def _handle_server_restarts(self) -> bool:
-        """Handle automatic restarts/shutdowns in server mode.
-
-        Returns True if an action was taken; otherwise default action
-        should occur (starting next round, etc).
-        """
-        # pylint: disable=cyclic-import
-
-        # FIXME: Move server stuff to its own module.
-        if self._allow_server_restart and _ba.app.server_config_dirty:
-            from ba import _server
-            from ba._lang import Lstr
-            from ba._general import Call
-            from ba._enums import TimeType
-            if _ba.app.server_config.get('quit', False):
-                if not self._kicked_off_server_shutdown:
-                    if _ba.app.server_config.get(
-                            'quit_reason') == 'restarting':
-                        # FIXME: Should add a server-screen-message call
-                        #  or something.
-                        _ba.chat_message(
-                            Lstr(resource='internal.serverRestartingText').
-                            evaluate())
-                        print(('Exiting for server-restart at ' +
-                               time.strftime('%c')))
-                    else:
-                        print(('Exiting for server-shutdown at ' +
-                               time.strftime('%c')))
-                    with _ba.Context('ui'):
-                        _ba.timer(2.0, _ba.quit, timetype=TimeType.REAL)
-                    self._kicked_off_server_shutdown = True
-                    return True
-            else:
-                if not self._kicked_off_server_restart:
-                    print(('Running updated server config at ' +
-                           time.strftime('%c')))
-                    with _ba.Context('ui'):
-                        _ba.timer(1.0,
-                                  Call(_ba.pushcall,
-                                       _server.launch_server_session),
-                                  timetype=TimeType.REAL)
-                    self._kicked_off_server_restart = True
-                    return True
-        return False
+            player.assigninput((InputType.JUMP_PRESS, InputType.PUNCH_PRESS,
+                                InputType.BOMB_PRESS, InputType.PICK_UP_PRESS),
+                               self._player_press)

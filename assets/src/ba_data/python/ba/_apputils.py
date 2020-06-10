@@ -43,7 +43,7 @@ def is_browser_likely_available() -> bool:
     """
     app = _ba.app
     platform = app.platform
-    touchscreen = _ba.get_input_device('TouchScreen', '#1', doraise=False)
+    touchscreen = _ba.getinputdevice('TouchScreen', '#1', doraise=False)
 
     # If we're on a vr device or an android device with no touchscreen,
     # assume no browser.
@@ -67,16 +67,6 @@ def should_submit_debug_info() -> bool:
     return _ba.app.config.get('Submit Debug Info', True)
 
 
-def suppress_debug_reports() -> None:
-    """Turn debug-reporting to the master server off.
-
-    This should be called in devel/debug situations to avoid spamming
-    the master server with spurious logs.
-    """
-    # _ba.screenmessage("Suppressing debug reports.", color=(1, 0, 0))
-    _ba.app.suppress_debug_reports = True
-
-
 def handle_log() -> None:
     """Called on debug log prints.
 
@@ -90,37 +80,38 @@ def handle_log() -> None:
     if not app.log_upload_timer_started:
 
         def _put_log() -> None:
-            if not app.suppress_debug_reports:
-                try:
-                    sessionname = str(_ba.get_foreground_host_session())
-                except Exception:
-                    sessionname = 'unavailable'
-                try:
-                    activityname = str(_ba.get_foreground_host_activity())
-                except Exception:
-                    activityname = 'unavailable'
-                info = {
-                    'log': _ba.get_log(),
-                    'version': app.version,
-                    'build': app.build_number,
-                    'userAgentString': app.user_agent_string,
-                    'session': sessionname,
-                    'activity': activityname,
-                    'fatal': 0,
-                    'userRanCommands': _ba.has_user_run_commands(),
-                    'time': _ba.time(TimeType.REAL),
-                    'userModded': _ba.has_user_mods()
-                }
+            try:
+                sessionname = str(_ba.get_foreground_host_session())
+            except Exception:
+                sessionname = 'unavailable'
+            try:
+                activityname = str(_ba.get_foreground_host_activity())
+            except Exception:
+                activityname = 'unavailable'
 
-                def response(data: Any) -> None:
-                    # A non-None response means success; lets
-                    # take note that we don't need to report further
-                    # log info this run
-                    if data is not None:
-                        app.log_have_new = False
-                        _ba.mark_log_sent()
+            info = {
+                'log': _ba.getlog(),
+                'version': app.version,
+                'build': app.build_number,
+                'userAgentString': app.user_agent_string,
+                'session': sessionname,
+                'activity': activityname,
+                'fatal': 0,
+                'userRanCommands': _ba.has_user_run_commands(),
+                'time': _ba.time(TimeType.REAL),
+                'userModded': _ba.has_user_mods(),
+                'newsShow': _ba.get_news_show(),
+            }
 
-                serverput('bsLog', info, response)
+            def response(data: Any) -> None:
+                # A non-None response means success; lets
+                # take note that we don't need to report further
+                # log info this run
+                if data is not None:
+                    app.log_have_new = False
+                    _ba.mark_log_sent()
+
+            serverput('bsLog', info, response)
 
         app.log_upload_timer_started = True
 
@@ -189,21 +180,23 @@ def print_live_object_warnings(when: Any,
     """Print warnings for remaining objects in the current context."""
     # pylint: disable=cyclic-import
     import gc
-    from ba import _session as bs_session
-    from ba import _actor as bs_actor
-    from ba import _activity as bs_activity
+    from ba._session import Session
+    from ba._actor import Actor
+    from ba._activity import Activity
     sessions: List[ba.Session] = []
     activities: List[ba.Activity] = []
-    actors = []
+    actors: List[ba.Actor] = []
+
+    # Once we come across leaked stuff, printing again is probably
+    # redundant.
     if _ba.app.printed_live_object_warning:
-        # print 'skipping live obj check due to previous found live object(s)'
         return
     for obj in gc.get_objects():
-        if isinstance(obj, bs_actor.Actor):
+        if isinstance(obj, Actor):
             actors.append(obj)
-        elif isinstance(obj, bs_session.Session):
+        elif isinstance(obj, Session):
             sessions.append(obj)
-        elif isinstance(obj, bs_activity.Activity):
+        elif isinstance(obj, Activity):
             activities.append(obj)
 
     # Complain about any remaining sessions.
@@ -211,66 +204,19 @@ def print_live_object_warnings(when: Any,
         if session is ignore_session:
             continue
         _ba.app.printed_live_object_warning = True
-        print('ERROR: Session found', when, ':', session)
-        # refs = list(gc.get_referrers(session))
-        # i = 1
-        # for ref in refs:
-        #     if type(ref) is types.FrameType: continue
-        #     print '     ref', i, ':', ref
-        #     i += 1
-        # if type(ref) is list or type(ref) is tuple or type(ref) is dict:
-        #     refs2 = list(gc.get_referrers(ref))
-        #     j = 1
-        #     for ref2 in refs2:
-        #         if type(ref2) is types.FrameType: continue
-        #         print '        ref\'s ref', j, ':', ref2
-        #         j += 1
+        print(f'ERROR: Session found {when}: {session}')
 
     # Complain about any remaining activities.
     for activity in activities:
         if activity is ignore_activity:
             continue
         _ba.app.printed_live_object_warning = True
-        print('ERROR: Activity found', when, ':', activity)
-        # refs = list(gc.get_referrers(activity))
-        # i = 1
-        # for ref in refs:
-        #     if type(ref) is types.FrameType: continue
-        #     print '     ref', i, ':', ref
-        #     i += 1
-        # if type(ref) is list or type(ref) is tuple or type(ref) is dict:
-        #     refs2 = list(gc.get_referrers(ref))
-        #     j = 1
-        #     for ref2 in refs2:
-        #         if type(ref2) is types.FrameType: continue
-        #         print '        ref\'s ref', j, ':', ref2
-        #         j += 1
+        print(f'ERROR: Activity found {when}: {activity}')
 
     # Complain about any remaining actors.
     for actor in actors:
         _ba.app.printed_live_object_warning = True
-        print('ERROR: Actor found', when, ':', actor)
-        # if isinstance(actor, bs_actor.Actor):
-        #     try:
-        #         if actor.node:
-        #             print('   - contains node:',
-        # actor.node.getnodetype(), ';',
-        #                   actor.node.get_name())
-        #     except Exception as exc:
-        #         print('   - exception checking actor node:', exc)
-        # refs = list(gc.get_referrers(actor))
-        # i = 1
-        # for ref in refs:
-        #     if type(ref) is types.FrameType: continue
-        #     print '     ref', i, ':', ref
-        #     i += 1
-        # if type(ref) is list or type(ref) is tuple or type(ref) is dict:
-        #     refs2 = list(gc.get_referrers(ref))
-        #     j = 1
-        #     for ref2 in refs2:
-        #         if type(ref2) is types.FrameType: continue
-        #         print '        ref\'s ref', j, ':', ref2
-        #         j += 1
+        print(f'ERROR: Actor found {when}: {actor}')
 
 
 def print_corrupt_file_error() -> None:

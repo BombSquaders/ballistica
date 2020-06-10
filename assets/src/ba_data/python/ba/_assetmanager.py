@@ -71,10 +71,10 @@ class AssetManager:
             logging.warning('AssetManager dying in a started state.')
 
     def launch_gather(
-            self,
-            packages: List[str],
-            flavor: AssetPackageFlavor,
-            account_token: str,
+        self,
+        packages: List[str],
+        flavor: AssetPackageFlavor,
+        account_token: str,
     ) -> AssetGather:
         """Spawn an asset-gather operation from this manager."""
         print('would gather', packages, 'and flavor', flavor, 'with token',
@@ -176,14 +176,13 @@ def fetch_url(url: str, filename: Path, asset_gather: AssetGather) -> None:
     """Fetch a given url to a given filename for a given AssetGather.
 
     """
-    # pylint: disable=too-many-locals
 
     import socket
 
     # We don't want to keep the provided AssetGather alive, but we want
     # to abort if it dies.
     assert isinstance(asset_gather, AssetGather)
-    weak_gather = weakref.ref(asset_gather)
+    # weak_gather = weakref.ref(asset_gather)
 
     # Pass a very short timeout to urllib so we have opportunities
     # to cancel even with network blockage.

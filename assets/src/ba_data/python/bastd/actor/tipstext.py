@@ -68,7 +68,7 @@ class TipsText(ba.Actor):
             0.001 * (self._message_duration + self._message_spacing),
             ba.WeakCall(self.change_phrase),
             repeat=True)
-        self._combine = ba.newnode("combine",
+        self._combine = ba.newnode('combine',
                                    owner=self.node,
                                    attrs={
                                        'input0': 1.0,
@@ -97,14 +97,13 @@ class TipsText(ba.Actor):
             spc + self._message_duration: 0.0
         }
         ba.animate(self._combine,
-                   "input3", {k: v * 0.5
+                   'input3', {k: v * 0.5
                               for k, v in list(keys.items())},
                    timeformat=ba.TimeFormat.MILLISECONDS)
         self.node.text = next_tip
 
     def handlemessage(self, msg: Any) -> Any:
-        if __debug__:
-            self._handlemessage_sanity_check()
+        assert not self.expired
         if isinstance(msg, ba.DieMessage):
             if self.node:
                 self.node.delete()

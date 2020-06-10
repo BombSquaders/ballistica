@@ -32,17 +32,16 @@ if TYPE_CHECKING:
 class AppDelegate(ba.AppDelegate):
     """Defines handlers for high level app functionality."""
 
-    def create_default_game_config_ui(
-        self, gameclass: Type[ba.GameActivity], sessionclass: Type[ba.Session],
-        config: Optional[Dict[str, Any]],
-        completion_call: Callable[[Optional[Dict[str, Any]]], Any]
-    ) -> None:
+    def create_default_game_settings_ui(
+            self, gameclass: Type[ba.GameActivity],
+            sessiontype: Type[ba.Session], settings: Optional[dict],
+            completion_call: Callable[[Optional[dict]], Any]) -> None:
         """(internal)"""
 
         # Replace the main window once we come up successfully.
         from bastd.ui.playlist.editgame import PlaylistEditGameWindow
         prev_window = ba.app.main_menu_window
         ba.app.main_menu_window = (PlaylistEditGameWindow(
-            gameclass, sessionclass, config,
+            gameclass, sessiontype, settings,
             completion_call=completion_call).get_root_widget())
         ba.containerwidget(edit=prev_window, transition='out_left')

@@ -19,31 +19,30 @@
 # SOFTWARE.
 # -----------------------------------------------------------------------------
 """Functionality related to teams mode score screen."""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 import ba
 from ba.internal import ScoreScreenActivity
+from bastd.actor.text import Text
+from bastd.actor.image import Image
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Optional, Union
-    from ba import PlayerRecord
 
 
 class MultiTeamScoreScreenActivity(ScoreScreenActivity):
     """Base class for score screens."""
 
-    def __init__(self, settings: Dict[str, Any]):
+    def __init__(self, settings: dict):
         super().__init__(settings=settings)
-        self._score_display_sound = ba.getsound("scoreHit01")
-        self._score_display_sound_small = ba.getsound("scoreHit02")
+        self._score_display_sound = ba.getsound('scoreHit01')
+        self._score_display_sound_small = ba.getsound('scoreHit02')
 
         self._show_up_next: bool = True
 
     def on_begin(self) -> None:
-        from bastd.actor.text import Text
         super().on_begin()
         session = self.session
         if self._show_up_next and isinstance(session, ba.MultiTeamSession):
@@ -71,36 +70,34 @@ class MultiTeamScoreScreenActivity(ScoreScreenActivity):
 
     def show_player_scores(self,
                            delay: float = 2.5,
-                           results: Optional[ba.TeamGameResults] = None,
+                           results: Optional[ba.GameResults] = None,
                            scale: float = 1.0,
                            x_offset: float = 0.0,
                            y_offset: float = 0.0) -> None:
         """Show scores for individual players."""
         # pylint: disable=too-many-locals
         # pylint: disable=too-many-statements
-        from bastd.actor.text import Text
-        from bastd.actor.image import Image
-        from ba import FreeForAllSession
 
         ts_v_offset = 150.0 + y_offset
         ts_h_offs = 80.0 + x_offset
         tdelay = delay
         spacing = 40
 
-        is_free_for_all = isinstance(self.session, FreeForAllSession)
+        is_free_for_all = isinstance(self.session, ba.FreeForAllSession)
 
-        def _get_prec_score(p_rec: PlayerRecord) -> int:
+        def _get_prec_score(p_rec: ba.PlayerRecord) -> Optional[int]:
             if is_free_for_all and results is not None:
-                assert isinstance(results, ba.TeamGameResults)
-                val = results.get_team_score(p_rec.team)
-                assert val is not None
+                assert isinstance(results, ba.GameResults)
+                assert p_rec.team.activityteam is not None
+                val = results.get_sessionteam_score(p_rec.team)
                 return val
             return p_rec.accumscore
 
-        def _get_prec_score_str(p_rec: PlayerRecord) -> Union[str, ba.Lstr]:
+        def _get_prec_score_str(p_rec: ba.PlayerRecord) -> Union[str, ba.Lstr]:
             if is_free_for_all and results is not None:
-                assert isinstance(results, ba.TeamGameResults)
-                val = results.get_team_score_str(p_rec.team)
+                assert isinstance(results, ba.GameResults)
+                assert p_rec.team.activityteam is not None
+                val = results.get_sessionteam_score_str(p_rec.team)
                 assert val is not None
                 return val
             return str(p_rec.accumscore)
@@ -110,53 +107,50 @@ class MultiTeamScoreScreenActivity(ScoreScreenActivity):
         # (since they're not in results and that's where we pull their
         # scores from)
         if results is not None:
-            assert isinstance(results, ba.TeamGameResults)
+            assert isinstance(results, ba.GameResults)
             player_records = []
             assert self.stats
             valid_players = list(self.stats.get_records().items())
 
             def _get_player_score_set_entry(
-                    player: ba.Player) -> Optional[PlayerRecord]:
+                    player: ba.SessionPlayer) -> Optional[ba.PlayerRecord]:
                 for p_rec in valid_players:
-                    # PyCharm incorrectly thinks valid_players is a List[str]
-                    # noinspection PyUnresolvedReferences
                     if p_rec[1].player is player:
                         return p_rec[1]
                 return None
 
             # Results is already sorted; just convert it into a list of
             # score-set-entries.
-            for winner in results.get_winners():
-                for team in winner.teams:
+            for winnergroup in results.winnergroups:
+                for team in winnergroup.teams:
                     if len(team.players) == 1:
                         player_entry = _get_player_score_set_entry(
                             team.players[0])
                         if player_entry is not None:
                             player_records.append(player_entry)
         else:
-            print('FIXME; CODE PATH NEEDS FIXING')
             player_records = []
-            # player_records = [[
-            #     _get_prec_score(p), name, p
-            # ] for name, p in list(self.stats.get_records().items())]
-            # player_records.sort(
-            #     reverse=(results is None
-            #             or not results.get_lower_is_better()))
-            # # just want living player entries
-            # player_records = [p[2] for p in player_records if p[2]]
+            player_records_scores = [
+                (_get_prec_score(p), name, p)
+                for name, p in list(self.stats.get_records().items())
+            ]
+            player_records_scores.sort(reverse=True)
 
-        v_offs = -140.0 + spacing * len(player_records) * 0.5
+            # Just want living player entries.
+            player_records = [p[2] for p in player_records_scores if p[2]]
 
-        def _txt(x_offs: float,
-                 y_offs: float,
+        voffs = -140.0 + spacing * len(player_records) * 0.5
+
+        def _txt(xoffs: float,
+                 yoffs: float,
                  text: ba.Lstr,
                  h_align: Text.HAlign = Text.HAlign.RIGHT,
                  extrascale: float = 1.0,
                  maxwidth: Optional[float] = 120.0) -> None:
             Text(text,
                  color=(0.5, 0.5, 0.6, 0.5),
-                 position=(ts_h_offs + x_offs * scale,
-                           ts_v_offset + (v_offs + y_offs + 4.0) * scale),
+                 position=(ts_h_offs + xoffs * scale,
+                           ts_v_offset + (voffs + yoffs + 4.0) * scale),
                  h_align=h_align,
                  v_align=Text.VAlign.CENTER,
                  scale=0.8 * scale * extrascale,
@@ -178,8 +172,8 @@ class MultiTeamScoreScreenActivity(ScoreScreenActivity):
         _txt(180, 4, ba.Lstr(resource='killsText'))
         _txt(280, 4, ba.Lstr(resource='deathsText'), maxwidth=100)
 
-        score_name = 'Score' if results is None else results.get_score_name()
-        translated = ba.Lstr(translate=('scoreNames', score_name))
+        score_label = 'Score' if results is None else results.score_label
+        translated = ba.Lstr(translate=('scoreNames', score_label))
 
         _txt(390, 0, translated)
 
@@ -199,7 +193,7 @@ class MultiTeamScoreScreenActivity(ScoreScreenActivity):
                       maxwidth: float = 70.0) -> None:
             Text(text,
                  position=(ts_h_offs + x_offs * scale,
-                           ts_v_offset + (v_offs + 15) * scale),
+                           ts_v_offset + (voffs + 15) * scale),
                  scale=scale,
                  color=(1.0, 0.9, 0.5, 1.0) if highlight else
                  (0.5, 0.5, 0.6, 0.5),
@@ -211,18 +205,18 @@ class MultiTeamScoreScreenActivity(ScoreScreenActivity):
 
         for playerrec in player_records:
             tdelay += 0.05
-            v_offs -= spacing
+            voffs -= spacing
             Image(playerrec.get_icon(),
                   position=(ts_h_offs - 12 * scale,
-                            ts_v_offset + (v_offs + 15.0) * scale),
+                            ts_v_offset + (voffs + 15.0) * scale),
                   scale=(30.0 * scale, 30.0 * scale),
                   transition=Image.Transition.IN_LEFT,
                   transition_delay=tdelay).autoretain()
-            Text(ba.Lstr(value=playerrec.get_name(full=True)),
+            Text(ba.Lstr(value=playerrec.getname(full=True)),
                  maxwidth=160,
                  scale=0.75 * scale,
                  position=(ts_h_offs + 10.0 * scale,
-                           ts_v_offset + (v_offs + 15) * scale),
+                           ts_v_offset + (voffs + 15) * scale),
                  h_align=Text.HAlign.LEFT,
                  v_align=Text.VAlign.CENTER,
                  color=ba.safecolor(playerrec.team.color + (1, )),

@@ -140,7 +140,7 @@ def get_achievement(name: str) -> Achievement:
     achs = [a for a in _ba.app.achievements if a.name == name]
     assert len(achs) < 2
     if not achs:
-        raise Exception("Invalid achievement name: '" + name + "'")
+        raise ValueError("Invalid achievement name: '" + name + "'")
     return achs[0]
 
 
@@ -180,7 +180,7 @@ def _display_next_achievement() -> None:
             ach.show_completion_banner(sound)
         except Exception:
             from ba import _error
-            _error.print_exception("error showing next achievement")
+            _error.print_exception('error showing next achievement')
             app.achievements_to_display = []
             app.achievement_display_timer = None
     else:
@@ -291,9 +291,9 @@ class Achievement:
         name: Union[ba.Lstr, str]
         try:
             if self._level_name != '':
-                from ba._campaign import get_campaign
+                from ba._campaign import getcampaign
                 campaignname, campaign_level = self._level_name.split(':')
-                name = get_campaign(campaignname).get_level(
+                name = getcampaign(campaignname).getlevel(
                     campaign_level).displayname
             else:
                 name = ''
@@ -326,24 +326,22 @@ class Achievement:
     def description_full(self) -> ba.Lstr:
         """Get a ba.Lstr for the Achievement's full description."""
         from ba._lang import Lstr
-        return Lstr(resource='achievements.' + self._name + '.descriptionFull',
-                    subs=[('${LEVEL}',
-                           Lstr(translate=[
-                               'coopLevelNames',
-                               ACH_LEVEL_NAMES.get(self._name, '?')
-                           ]))])
+
+        return Lstr(
+            resource='achievements.' + self._name + '.descriptionFull',
+            subs=[('${LEVEL}',
+                   Lstr(translate=('coopLevelNames',
+                                   ACH_LEVEL_NAMES.get(self._name, '?'))))])
 
     @property
     def description_full_complete(self) -> ba.Lstr:
         """Get a ba.Lstr for the Achievement's full desc. when completed."""
         from ba._lang import Lstr
-        return Lstr(resource='achievements.' + self._name +
-                    '.descriptionFullComplete',
-                    subs=[('${LEVEL}',
-                           Lstr(translate=[
-                               'coopLevelNames',
-                               ACH_LEVEL_NAMES.get(self._name, '?')
-                           ]))])
+        return Lstr(
+            resource='achievements.' + self._name + '.descriptionFullComplete',
+            subs=[('${LEVEL}',
+                   Lstr(translate=('coopLevelNames',
+                                   ACH_LEVEL_NAMES.get(self._name, '?'))))])
 
     def get_award_ticket_value(self, include_pro_bonus: bool = False) -> int:
         """Get the ticket award value for this achievement."""
@@ -375,6 +373,7 @@ class Achievement:
         # pylint: disable=cyclic-import
         from ba._lang import Lstr
         from ba._enums import SpecialChar
+        from ba._coopsession import CoopSession
         from bastd.actor.image import Image
         from bastd.actor.text import Text
 
@@ -398,7 +397,7 @@ class Achievement:
             v_attach = Text.VAttach.TOP
             attach = Image.Attach.TOP_CENTER
         else:
-            raise Exception('invalid style "' + style + '"')
+            raise ValueError('invalid style "' + style + '"')
 
         # Attempt to determine what campaign we're in
         # (so we know whether to show "hard mode only").
@@ -406,12 +405,16 @@ class Achievement:
             hmo = False
         else:
             try:
-                campaign = _ba.getsession().campaign
-                assert campaign is not None
-                hmo = (self._hard_mode_only and campaign.name == 'Easy')
+                session = _ba.getsession()
+                if isinstance(session, CoopSession):
+                    campaign = session.campaign
+                    assert campaign is not None
+                    hmo = (self._hard_mode_only and campaign.name == 'Easy')
+                else:
+                    hmo = False
             except Exception:
                 from ba import _error
-                _error.print_exception("unable to determine campaign")
+                _error.print_exception('Error determining campaign')
                 hmo = False
 
         objs: List[ba.Actor]
@@ -680,7 +683,7 @@ class Achievement:
 
         # Just piggy-back onto any current activity
         # (should we use the session instead?..)
-        activity: Optional[ba.Activity] = _ba.getactivity(doraise=False)
+        activity = _ba.getactivity(doraise=False)
 
         # If this gets called while this achievement is occupying a slot
         # already, ignore it. (probably should never happen in real

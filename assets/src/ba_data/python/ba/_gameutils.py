@@ -19,12 +19,15 @@
 # SOFTWARE.
 # -----------------------------------------------------------------------------
 """Utility functionality pertaining to gameplay."""
+
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import _ba
 from ba._enums import TimeType, TimeFormat, SpecialChar
+from ba._error import ActivityNotFoundError
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Sequence, Optional
@@ -40,130 +43,22 @@ TROPHY_CHARS = {
 }
 
 
+@dataclass
+class GameTip:
+    """Defines a tip presentable to the user at the start of a game.
+
+    Category: Gameplay Classes
+    """
+    text: str
+    icon: Optional[ba.Texture] = None
+    sound: Optional[ba.Sound] = None
+
+
 def get_trophy_string(trophy_id: str) -> str:
     """Given a trophy id, returns a string to visualize it."""
     if trophy_id in TROPHY_CHARS:
         return _ba.charstr(TROPHY_CHARS[trophy_id])
     return '?'
-
-
-def sharedobj(name: str) -> Any:
-    """Return a predefined object for the current Activity, creating if needed.
-
-    Category: Gameplay Functions
-
-    Available values for 'name':
-
-    'globals': returns the 'globals' ba.Node, containing various global
-      controls & values.
-
-    'object_material': a ba.Material that should be applied to any small,
-      normal, physical objects such as bombs, boxes, players, etc. Other
-      materials often check for the  presence of this material as a
-      prerequisite for performing certain actions (such as disabling collisions
-      between initially-overlapping objects)
-
-    'player_material': a ba.Material to be applied to player parts.  Generally,
-      materials related to the process of scoring when reaching a goal, etc
-      will look for the presence of this material on things that hit them.
-
-    'pickup_material': a ba.Material; collision shapes used for picking things
-      up will have this material applied. To prevent an object from being
-      picked up, you can add a material that disables collisions against things
-      containing this material.
-
-    'footing_material': anything that can be 'walked on' should have this
-      ba.Material applied; generally just terrain and whatnot. A character will
-      snap upright whenever touching something with this material so it should
-      not be applied to props, etc.
-
-    'attack_material': a ba.Material applied to explosion shapes, punch
-      shapes, etc.  An object not wanting to receive impulse/etc messages can
-      disable collisions against this material.
-
-    'death_material': a ba.Material that sends a ba.DieMessage() to anything
-      that touches it; handy for terrain below a cliff, etc.
-
-    'region_material':  a ba.Material used for non-physical collision shapes
-      (regions); collisions can generally be allowed with this material even
-      when initially overlapping since it is not physical.
-
-    'railing_material': a ba.Material with a very low friction/stiffness/etc
-      that can be applied to invisible 'railings' useful for gently keeping
-      characters from falling off of cliffs.
-    """
-    # pylint: disable=too-many-branches
-    from ba._messages import DieMessage
-
-    # We store these on the current context; whether its an activity or
-    # session.
-    activity: Optional[ba.Activity] = _ba.getactivity(doraise=False)
-    if activity is not None:
-
-        # Grab shared-objs dict.
-        sharedobjs = getattr(activity, 'sharedobjs', None)
-
-        # Grab item out of it.
-        try:
-            return sharedobjs[name]
-        except Exception:
-            pass
-
-        obj: Any
-
-        # Hmm looks like it doesn't yet exist; create it if its a valid value.
-        if name == 'globals':
-            node_obj = _ba.newnode('globals')
-            obj = node_obj
-        elif name in [
-                'object_material', 'player_material', 'pickup_material',
-                'footing_material', 'attack_material'
-        ]:
-            obj = _ba.Material()
-        elif name == 'death_material':
-            mat = obj = _ba.Material()
-            mat.add_actions(
-                ('message', 'their_node', 'at_connect', DieMessage()))
-        elif name == 'region_material':
-            obj = _ba.Material()
-        elif name == 'railing_material':
-            mat = obj = _ba.Material()
-            mat.add_actions(('modify_part_collision', 'collide', False))
-            mat.add_actions(('modify_part_collision', 'stiffness', 0.003))
-            mat.add_actions(('modify_part_collision', 'damping', 0.00001))
-            mat.add_actions(conditions=('they_have_material',
-                                        sharedobj('player_material')),
-                            actions=(('modify_part_collision', 'collide',
-                                      True), ('modify_part_collision',
-                                              'friction', 0.0)))
-        else:
-            raise Exception(
-                "unrecognized shared object (activity context): '" + name +
-                "'")
-    else:
-        session: Optional[ba.Session] = _ba.getsession(doraise=False)
-        if session is not None:
-
-            # Grab shared-objs dict (creating if necessary).
-            sharedobjs = session.sharedobjs
-
-            # Grab item out of it.
-            obj = sharedobjs.get(name)
-            if obj is not None:
-                return obj
-
-            # Hmm looks like it doesn't yet exist; create if its a valid value.
-            if name == 'globals':
-                obj = _ba.newnode('sessionglobals')
-            else:
-                raise Exception("unrecognized shared object "
-                                "(session context): '" + name + "'")
-        else:
-            raise Exception("no current activity or session context")
-
-    # Ok, got a shiny new shared obj; store it for quick access next time.
-    sharedobjs[name] = obj
-    return obj
 
 
 def animate(node: ba.Node,
@@ -188,19 +83,18 @@ def animate(node: ba.Node,
     if timetype is TimeType.SIM:
         driver = 'time'
     else:
-        raise Exception("FIXME; only SIM timetype is supported currently.")
+        raise Exception('FIXME; only SIM timetype is supported currently.')
     items = list(keys.items())
     items.sort()
 
     # Temp sanity check while we transition from milliseconds to seconds
     # based time values.
-    if _ba.app.test_build and not suppress_format_warning:
-        for item in items:
-            # (PyCharm seems to think item is a float, not a tuple)
-            # noinspection PyUnresolvedReferences
-            _ba.time_format_check(timeformat, item[0])
+    if __debug__:
+        if not suppress_format_warning:
+            for item in items:
+                _ba.time_format_check(timeformat, item[0])
 
-    curve = _ba.newnode("animcurve",
+    curve = _ba.newnode('animcurve',
                         owner=node,
                         name='Driving ' + str(node) + ' \'' + attr + '\'')
 
@@ -209,7 +103,7 @@ def animate(node: ba.Node,
     elif timeformat is TimeFormat.MILLISECONDS:
         mult = 1
     else:
-        raise Exception(f'invalid timeformat value: {timeformat}')
+        raise ValueError(f'invalid timeformat value: {timeformat}')
 
     curve.times = [int(mult * time) for time, val in items]
     curve.offset = _ba.time(timeformat=TimeFormat.MILLISECONDS) + int(
@@ -222,16 +116,21 @@ def animate(node: ba.Node,
     # FIXME: Even if we are looping we should have a way to die once we
     #  get disconnected.
     if not loop:
-        # (PyCharm seems to think item is a float, not a tuple)
-        # noinspection PyUnresolvedReferences
         _ba.timer(int(mult * items[-1][0]) + 1000,
                   curve.delete,
                   timeformat=TimeFormat.MILLISECONDS)
 
     # Do the connects last so all our attrs are in place when we push initial
     # values through.
-    sharedobj('globals').connectattr(driver, curve, "in")
-    curve.connectattr("out", node, attr)
+
+    # We operate in either activities or sessions..
+    try:
+        globalsnode = _ba.getactivity().globalsnode
+    except ActivityNotFoundError:
+        globalsnode = _ba.getsession().sessionglobalsnode
+
+    globalsnode.connectattr(driver, curve, 'in')
+    curve.connectattr('out', node, attr)
     return curve
 
 
@@ -255,43 +154,48 @@ def animate_array(node: ba.Node,
     if timetype is TimeType.SIM:
         driver = 'time'
     else:
-        raise Exception("FIXME: Only SIM timetype is supported currently.")
+        raise Exception('FIXME: Only SIM timetype is supported currently.')
     items = list(keys.items())
     items.sort()
 
     # Temp sanity check while we transition from milliseconds to seconds
     # based time values.
-    if _ba.app.test_build and not suppress_format_warning:
-        for item in items:
-            # (PyCharm seems to think item is a float, not a tuple)
-            # noinspection PyUnresolvedReferences
-            _ba.time_format_check(timeformat, item[0])
+    if __debug__:
+        if not suppress_format_warning:
+            for item in items:
+                # (PyCharm seems to think item is a float, not a tuple)
+                _ba.time_format_check(timeformat, item[0])
 
     if timeformat is TimeFormat.SECONDS:
         mult = 1000
     elif timeformat is TimeFormat.MILLISECONDS:
         mult = 1
     else:
-        raise Exception('invalid timeformat value: "' + str(timeformat) + '"')
+        raise ValueError('invalid timeformat value: "' + str(timeformat) + '"')
+
+    # We operate in either activities or sessions..
+    try:
+        globalsnode = _ba.getactivity().globalsnode
+    except ActivityNotFoundError:
+        globalsnode = _ba.getsession().sessionglobalsnode
 
     for i in range(size):
-        curve = _ba.newnode("animcurve",
+        curve = _ba.newnode('animcurve',
                             owner=node,
                             name=('Driving ' + str(node) + ' \'' + attr +
                                   '\' member ' + str(i)))
-        sharedobj('globals').connectattr(driver, curve, "in")
+        globalsnode.connectattr(driver, curve, 'in')
         curve.times = [int(mult * time) for time, val in items]
         curve.values = [val[i] for time, val in items]
         curve.offset = _ba.time(timeformat=TimeFormat.MILLISECONDS) + int(
             mult * offset)
         curve.loop = loop
-        curve.connectattr("out", combine, 'input' + str(i))
+        curve.connectattr('out', combine, 'input' + str(i))
 
         # If we're not looping, set a timer to kill this
         # curve after its done its job.
         if not loop:
             # (PyCharm seems to think item is a float, not a tuple)
-            # noinspection PyUnresolvedReferences
             _ba.timer(int(mult * items[-1][0]) + 1000,
                       curve.delete,
                       timeformat=TimeFormat.MILLISECONDS)
@@ -303,7 +207,6 @@ def animate_array(node: ba.Node,
     #  once we get disconnected.
     if not loop:
         # (PyCharm seems to think item is a float, not a tuple)
-        # noinspection PyUnresolvedReferences
         _ba.timer(int(mult * items[-1][0]) + 1000,
                   combine.delete,
                   timeformat=TimeFormat.MILLISECONDS)
@@ -333,7 +236,7 @@ def show_damage_count(damage: str, position: Sequence[float],
                               'scale': 0.015 if do_big else 0.01
                           })
     # Translate upward.
-    tcombine = _ba.newnode("combine", owner=txtnode, attrs={'size': 3})
+    tcombine = _ba.newnode('combine', owner=txtnode, attrs={'size': 3})
     tcombine.connectattr('output', txtnode, 'position')
     v_vals = []
     pval = 0.0
@@ -345,17 +248,17 @@ def show_damage_count(damage: str, position: Sequence[float],
         vval *= 0.5
     p_start = position[0]
     p_dir = direction[0]
-    animate(tcombine, "input0",
+    animate(tcombine, 'input0',
             {i[0] * lifespan: p_start + p_dir * i[1]
              for i in v_vals})
     p_start = position[1]
     p_dir = direction[1]
-    animate(tcombine, "input1",
+    animate(tcombine, 'input1',
             {i[0] * lifespan: p_start + p_dir * i[1]
              for i in v_vals})
     p_start = position[2]
     p_dir = direction[2]
-    animate(tcombine, "input2",
+    animate(tcombine, 'input2',
             {i[0] * lifespan: p_start + p_dir * i[1]
              for i in v_vals})
     animate(txtnode, 'opacity', {0.7 * lifespan: 1.0, lifespan: 0.0})
@@ -386,8 +289,9 @@ def timestring(timeval: float,
 
     # Temp sanity check while we transition from milliseconds to seconds
     # based time values.
-    if _ba.app.test_build and not suppress_format_warning:
-        _ba.time_format_check(timeformat, timeval)
+    if __debug__:
+        if not suppress_format_warning:
+            _ba.time_format_check(timeformat, timeval)
 
     # We operate on milliseconds internally.
     if timeformat is TimeFormat.SECONDS:
@@ -395,7 +299,7 @@ def timestring(timeval: float,
     elif timeformat is TimeFormat.MILLISECONDS:
         pass
     else:
-        raise Exception(f'invalid timeformat: {timeformat}')
+        raise ValueError(f'invalid timeformat: {timeformat}')
     if not isinstance(timeval, int):
         timeval = int(timeval)
     bits = []
@@ -452,11 +356,10 @@ def cameraflash(duration: float = 999.0) -> None:
     # Store this on the current activity so we only have one at a time.
     # FIXME: Need a type safe way to do this.
     activity = _ba.getactivity()
-    # noinspection PyTypeHints
     activity.camera_flash_data = []  # type: ignore
     for i in range(6):
         light = NodeActor(
-            _ba.newnode("light",
+            _ba.newnode('light',
                         attrs={
                             'position': (positions[i][0], 0, positions[i][1]),
                             'radius': 1.0,
@@ -466,7 +369,7 @@ def cameraflash(duration: float = 999.0) -> None:
                         }))
         sval = 1.87
         iscale = 1.3
-        tcombine = _ba.newnode("combine",
+        tcombine = _ba.newnode('combine',
                                owner=light.node,
                                attrs={
                                    'size': 3,
@@ -497,7 +400,7 @@ def cameraflash(duration: float = 999.0) -> None:
                 },
                 loop=True)
         animate(light.node,
-                "intensity", {
+                'intensity', {
                     0.0: 0,
                     0.02 * sval: 0,
                     0.05 * sval: 0.8 * iscale,

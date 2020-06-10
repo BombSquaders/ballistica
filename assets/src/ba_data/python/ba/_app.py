@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import time
+import random
 from typing import TYPE_CHECKING
 
 import _ba
@@ -31,8 +32,7 @@ if TYPE_CHECKING:
     from ba import _lang, _meta
     from ba.ui import UICleanupCheck
     from bastd.actor import spazappearance
-    from typing import (Optional, Dict, Tuple, Set, Any, List, Type, Tuple,
-                        Callable)
+    from typing import Optional, Dict, Set, Any, Type, Tuple, Callable, List
 
 
 class App:
@@ -180,14 +180,19 @@ class App:
         return self._test_build
 
     @property
-    def user_scripts_directory(self) -> str:
-        """Path where the game is looking for custom user scripts."""
-        return self._user_scripts_directory
+    def python_directory_user(self) -> str:
+        """Path where the app looks for custom user scripts."""
+        return self._python_directory_user
 
     @property
-    def system_scripts_directory(self) -> str:
-        """Path where the game is looking for its bundled scripts."""
-        return self._system_scripts_directory
+    def python_directory_app(self) -> str:
+        """Path where the app looks for its bundled scripts."""
+        return self._python_directory_app
+
+    @property
+    def python_directory_app_site(self) -> str:
+        """Path containing pip packages bundled with the app."""
+        return self._python_directory_app_site
 
     @property
     def config(self) -> ba.AppConfig:
@@ -263,9 +268,7 @@ class App:
         the single shared instance.
         """
         # pylint: disable=too-many-statements
-        from ba._music import MusicPlayMode
-
-        # _test_https()
+        from ba._music import MusicController
 
         # Config.
         self.config_file_healthy = False
@@ -276,8 +279,7 @@ class App:
         self.fg_state = 0
 
         # Environment stuff.
-        # (pulling these into attrs so we can type-check them)
-
+        # (pulling these into attrs so we can type-check them and provide docs)
         env = _ba.env()
         self._build_number: int = env['build_number']
         assert isinstance(self._build_number, int)
@@ -293,10 +295,12 @@ class App:
         assert isinstance(self._debug_build, bool)
         self._test_build: bool = env['test_build']
         assert isinstance(self._test_build, bool)
-        self._user_scripts_directory: str = env['user_scripts_directory']
-        assert isinstance(self._user_scripts_directory, str)
-        self._system_scripts_directory: str = env['system_scripts_directory']
-        assert isinstance(self._system_scripts_directory, str)
+        self._python_directory_user: str = env['python_directory_user']
+        assert isinstance(self._python_directory_user, str)
+        self._python_directory_app: str = env['python_directory_app']
+        assert isinstance(self._python_directory_app, str)
+        self._python_directory_app_site: str = env['python_directory_app_site']
+        assert isinstance(self._python_directory_app_site, str)
         self._platform: str = env['platform']
         assert isinstance(self._platform, str)
         self._subplatform: str = env['subplatform']
@@ -313,17 +317,18 @@ class App:
         assert isinstance(self.toolbar_test, bool)
         self.kiosk_mode: bool = env['kiosk_mode']
         assert isinstance(self.kiosk_mode, bool)
+        self.headless_build: bool = env['headless_build']
+        assert isinstance(self.headless_build, bool)
 
         # Misc.
         self.default_language = self._get_default_language()
         self.metascan: Optional[_meta.ScanResults] = None
         self.tips: List[str] = []
         self.stress_test_reset_timer: Optional[ba.Timer] = None
-        self.suppress_debug_reports = False
         self.last_ad_completion_time: Optional[float] = None
         self.last_ad_was_short = False
         self.did_weak_call_warning = False
-        self.ran_on_launch = False
+        self.ran_on_app_launch = False
 
         # If we try to run promo-codes due to launch-args/etc we might
         # not be signed in yet; go ahead and queue them up in that case.
@@ -345,13 +350,8 @@ class App:
         # Co-op Campaigns.
         self.campaigns: Dict[str, ba.Campaign] = {}
 
-        # Server-Mode.
-        self.server_config: Dict[str, Any] = {}
-        self.server_config_dirty = False
-        self.run_server_wait_timer: Optional[ba.Timer] = None
-        self.server_playlist_fetch: Optional[Dict[str, Any]] = None
-        self.launched_server = False
-        self.run_server_first_run = True
+        # Server Mode.
+        self.server: Optional[ba.ServerController] = None
 
         # Ads.
         self.last_ad_network = 'unknown'
@@ -361,14 +361,7 @@ class App:
         self.attempted_first_ad = False
 
         # Music.
-        self.music: Optional[ba.Node] = None
-        self.music_mode: ba.MusicPlayMode = MusicPlayMode.REGULAR
-        self.music_player: Optional[ba.MusicPlayer] = None
-        self.music_player_type: Optional[Type[ba.MusicPlayer]] = None
-        self.music_types: Dict[ba.MusicPlayMode, Optional[ba.MusicType]] = {
-            MusicPlayMode.REGULAR: None,
-            MusicPlayMode.TEST: None
-        }
+        self.music = MusicController()
 
         # Language.
         self.language_target: Optional[_lang.AttrDict] = None
@@ -383,7 +376,7 @@ class App:
 
         # Lobby.
         self.lobby_random_profile_index: int = 1
-        self.lobby_random_char_index_offset: Optional[int] = None
+        self.lobby_random_char_index_offset = random.randrange(1000)
         self.lobby_account_profile_device_id: Optional[int] = None
 
         # Main Menu.
@@ -417,7 +410,7 @@ class App:
         self.main_menu_window_refresh_check_count = 0
         self.first_main_menu = True  # FIXME: Move to mainmenu class.
         self.did_menu_intro = False  # FIXME: Move to mainmenu class.
-        self.main_menu_resume_callbacks: list = []  # can probably go away
+        self.main_menu_resume_callbacks: list = []  # Can probably go away.
         self.special_offer: Optional[Dict] = None
         self.league_rank_cache: Dict = {}
         self.tournament_info: Dict = {}
@@ -434,6 +427,7 @@ class App:
         self.infotextcolor = (0.7, 0.9, 0.7)
         self.uicleanupchecks: List[UICleanupCheck] = []
         self.uiupkeeptimer: Optional[ba.Timer] = None
+
         self.delegate: Optional[ba.AppDelegate] = None
 
         # A few shortcuts.
@@ -442,13 +436,12 @@ class App:
         self.large_ui = env['interface_type'] == 'large'
         self.toolbars = env.get('toolbar_test', True)
 
-    def on_launch(self) -> None:
+    def on_app_launch(self) -> None:
         """Runs after the app finishes bootstrapping.
 
         (internal)"""
         # FIXME: Break this up.
         # pylint: disable=too-many-statements
-        # pylint: disable=too-many-branches
         # pylint: disable=too-many-locals
         # pylint: disable=cyclic-import
         from ba import _apputils
@@ -457,7 +450,6 @@ class App:
         from ba import _achievement
         from ba import _map
         from ba import _meta
-        from ba import _music
         from ba import _campaign
         from bastd import appdelegate
         from bastd import maps as stdmaps
@@ -472,11 +464,6 @@ class App:
         _achievement.init_achievements()
         spazappearance.register_appearances()
         _campaign.init_campaigns()
-        if _ba.env()['platform'] == 'android':
-            self.music_player_type = _music.InternalMusicPlayer
-        elif _ba.env()['platform'] == 'mac' and hasattr(
-                _ba, 'mac_music_app_init'):
-            self.music_player_type = _music.MacMusicAppMusicPlayer
 
         # FIXME: This should not be hard-coded.
         for maptype in [
@@ -489,8 +476,11 @@ class App:
         ]:
             _map.register_map(maptype)
 
-        if self.debug_build:
-            _apputils.suppress_debug_reports()
+        # Non-test, non-debug builds should generally be blessed; warn if not.
+        # (so I don't accidentally release a build that can't play tourneys)
+        if (not self.debug_build and not self.test_build
+                and not _ba.is_blessed()):
+            _ba.screenmessage('WARNING: NON-BLESSED BUILD', color=(1, 0, 0))
 
         # IMPORTANT - if tweaking UI stuff, you need to make sure it behaves
         # for small, medium, and large UI modes. (doesn't run off screen, etc).
@@ -538,7 +528,7 @@ class App:
         # Notify the user if we're using custom system scripts.
         # FIXME: This no longer works since sys-scripts is an absolute path;
         #  need to just add a proper call to query this.
-        # if env['system_scripts_directory'] != 'data/scripts':
+        # if env['python_directory_app'] != 'data/scripts':
         #     ba.screenmessage("Using custom system scripts...",
         #                     color=(0, 1, 0))
 
@@ -555,17 +545,7 @@ class App:
             # to disk.
             _appconfig.commit_app_config(force=True)
 
-        # If we're using a non-default playlist, lets go ahead and get our
-        # music-player going since it may hitch (better while we're faded
-        # out than later).
-        try:
-            if ('Soundtrack' in cfg and cfg['Soundtrack'] not in [
-                    '__default__', 'Default Soundtrack'
-            ]):
-                _music.get_music_player()
-        except Exception:
-            from ba import _error
-            _error.print_exception('error prepping music-player')
+        self.music.on_app_launch()
 
         launch_count = cfg.get('launchCount', 0)
         launch_count += 1
@@ -581,14 +561,14 @@ class App:
         server_addr = _ba.get_master_server_address()
         if 'localhost' in server_addr:
             _ba.timer(2.0,
-                      lambda: _ba.screenmessage("Note: using local server",
+                      lambda: _ba.screenmessage('Note: using local server',
                                                 (1, 1, 0),
                                                 log=True),
                       timetype=TimeType.REAL)
         elif 'test' in server_addr:
             _ba.timer(
                 2.0,
-                lambda: _ba.screenmessage("Note: using test server-module",
+                lambda: _ba.screenmessage('Note: using test server-module',
                                           (1, 1, 0),
                                           log=True),
                 timetype=TimeType.REAL)
@@ -606,7 +586,7 @@ class App:
                 self.special_offer = config['pendingSpecialOffer']['o']
                 specialoffer.show_offer()
 
-        if self.subplatform != 'headless':
+        if not self.headless_build:
             _ba.timer(3.0, check_special_offer, timetype=TimeType.REAL)
 
         # Start scanning for things exposed via ba_meta.
@@ -614,14 +594,14 @@ class App:
 
         # Auto-sign-in to a local account in a moment if we're set to.
         def do_auto_sign_in() -> None:
-            if self.subplatform == 'headless':
+            if self.headless_build:
                 _ba.sign_in('Local')
             elif cfg.get('Auto Account State') == 'Local':
                 _ba.sign_in('Local')
 
         _ba.pushcall(do_auto_sign_in)
 
-        self.ran_on_launch = True
+        self.ran_on_app_launch = True
 
         # from ba._dependency import test_depset
         # test_depset()
@@ -645,7 +625,7 @@ class App:
             # FIXME: Shouldn't be touching scene stuff here;
             #  should just pass the request on to the host-session.
             with _ba.Context(activity):
-                globs = _gameutils.sharedobj('globals')
+                globs = activity.globalsnode
                 if not globs.paused:
                     _ba.playsound(_ba.getsound('refWhistle'))
                     globs.paused = True
@@ -667,14 +647,13 @@ class App:
         If there's a foreground host-activity that's currently paused, tell it
         to resume.
         """
-        from ba import _gameutils
 
         # FIXME: Shouldn't be touching scene stuff here;
         #  should just pass the request on to the host-session.
         activity = _ba.get_foreground_host_activity()
         if activity is not None:
             with _ba.Context(activity):
-                globs = _gameutils.sharedobj('globals')
+                globs = activity.globalsnode
                 if globs.paused:
                     _ba.playsound(_ba.getsound('refWhistle'))
                     globs.paused = False
@@ -687,10 +666,9 @@ class App:
         # pylint: disable=cyclic-import
         from ba import _benchmark
         from ba._general import Call
-        from bastd import mainmenu
+        from bastd.mainmenu import MainMenuSession
         _ba.app.main_window = None
-        if isinstance(_ba.get_foreground_host_session(),
-                      mainmenu.MainMenuSession):
+        if isinstance(_ba.get_foreground_host_session(), MainMenuSession):
             # It may be possible we're on the main menu but the screen is faded
             # so fade back in.
             _ba.fade_screen(True)
@@ -715,7 +693,7 @@ class App:
 
         # Otherwise just force the issue.
         else:
-            _ba.pushcall(Call(_ba.new_host_session, mainmenu.MainMenuSession))
+            _ba.pushcall(Call(_ba.new_host_session, MainMenuSession))
 
     def add_main_menu_close_callback(self, call: Callable[[], Any]) -> None:
         """(internal)"""
@@ -727,16 +705,14 @@ class App:
         else:
             self.main_menu_resume_callbacks.append(call)
 
-    def handle_app_pause(self) -> None:
+    def on_app_pause(self) -> None:
         """Called when the app goes to a suspended state."""
 
-    def handle_app_resume(self) -> None:
+    def on_app_resume(self) -> None:
         """Run when the app resumes from a suspended state."""
 
-        # If there's music playing externally, make sure we aren't playing
-        # ours.
-        from ba import _music
-        _music.handle_app_resume()
+        self.music.on_app_resume()
+
         self.fg_state += 1
 
         # Mark our cached tourneys as invalid so anyone using them knows
@@ -748,28 +724,27 @@ class App:
                          game: str,
                          force: bool = False,
                          args: Dict = None) -> bool:
-        """High level way to launch a co-op session locally."""
+        """High level way to launch a local co-op session."""
         # pylint: disable=cyclic-import
-        from ba._campaign import get_campaign
+        from ba._campaign import getcampaign
         from bastd.ui.coop.level import CoopLevelLockedWindow
         if args is None:
             args = {}
         if game == '':
-            raise Exception("empty game name")
+            raise ValueError('empty game name')
         campaignname, levelname = game.split(':')
-        campaign = get_campaign(campaignname)
-        levels = campaign.get_levels()
+        campaign = getcampaign(campaignname)
 
         # If this campaign is sequential, make sure we've completed the
         # one before this.
         if campaign.sequential and not force:
-            for level in levels:
+            for level in campaign.levels:
                 if level.name == levelname:
                     break
                 if not level.complete:
                     CoopLevelLockedWindow(
-                        campaign.get_level(levelname).displayname,
-                        campaign.get_level(level.name).displayname)
+                        campaign.getlevel(levelname).displayname,
+                        campaign.getlevel(level.name).displayname)
                     return False
 
         # Ok, we're good to go.
@@ -814,17 +789,17 @@ class App:
                                               color=(1, 1, 0)),
                     timetype=TimeType.REAL)
 
-    def shutdown(self) -> None:
+    def on_app_shutdown(self) -> None:
         """(internal)"""
-        if self.music_player is not None:
-            self.music_player.shutdown()
+        self.music.on_app_shutdown()
 
     def handle_deep_link(self, url: str) -> None:
         """Handle a deep link URL."""
         from ba._lang import Lstr
         from ba._enums import TimeType
-        if url.startswith('ballisticacore://code/'):
-            code = url.replace('ballisticacore://code/', '')
+        appname = _ba.appname()
+        if url.startswith(f'{appname}://code/'):
+            code = url.replace(f'{appname}://code/', '')
 
             # If we're not signed in, queue up the code to run the next time we
             # are and issue a warning if we haven't signed in within the next
@@ -866,6 +841,6 @@ class App:
         import urllib.request
         try:
             val = urllib.request.urlopen('https://example.com').read()
-            print("HTTPS TEST SUCCESS", len(val))
+            print('HTTPS TEST SUCCESS', len(val))
         except Exception as exc:
-            print("HTTPS TEST FAIL:", exc)
+            print('HTTPS TEST FAIL:', exc)

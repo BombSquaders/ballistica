@@ -42,7 +42,7 @@ def run_cpu_benchmark() -> None:
 
         def __init__(self) -> None:
 
-            print('FIXME: BENCHMARK SESSION WOULD CALC DEPS.')
+            # print('FIXME: BENCHMARK SESSION WOULD CALC DEPS.')
             depsets: Sequence[ba.DependencySet] = []
 
             super().__init__(depsets)
@@ -50,10 +50,10 @@ def run_cpu_benchmark() -> None:
             # Store old graphics settings.
             self._old_quality = _ba.app.config.resolve('Graphics Quality')
             cfg = _ba.app.config
-            cfg['Graphics Quality'] = "Low"
+            cfg['Graphics Quality'] = 'Low'
             cfg.apply()
             self.benchmark_type = 'cpu'
-            self.set_activity(_ba.new_activity(tutorial.TutorialActivity))
+            self.setactivity(_ba.newactivity(tutorial.TutorialActivity))
 
         def __del__(self) -> None:
 
@@ -62,7 +62,7 @@ def run_cpu_benchmark() -> None:
             cfg['Graphics Quality'] = self._old_quality
             cfg.apply()
 
-        def on_player_request(self, player: ba.Player) -> bool:
+        def on_player_request(self, player: ba.SessionPlayer) -> bool:
             return False
 
     _ba.new_host_session(BenchmarkSession, benchmark_type='cpu')
@@ -78,7 +78,7 @@ def run_stress_test(playlist_type: str = 'Random',
     from ba._enums import TimeType
     _ba.screenmessage(
         'Beginning stress test.. use '
-        '\'End Game\' to stop testing.',
+        "'End Game' to stop testing.",
         color=(1, 1, 0))
     with _ba.Context('ui'):
         start_stress_test({
@@ -91,7 +91,7 @@ def run_stress_test(playlist_type: str = 'Random',
                   Call(_ba.screenmessage,
                        ('stats will be written to ' +
                         _modutils.get_human_readable_user_scripts_path() +
-                        '/stressTestStats.csv')),
+                        '/stress_test_stats.csv')),
                   timetype=TimeType.REAL)
 
 
@@ -100,7 +100,7 @@ def stop_stress_test() -> None:
     _ba.set_stress_testing(False, 0)
     try:
         if _ba.app.stress_test_reset_timer is not None:
-            _ba.screenmessage("Ending stress test...", color=(1, 1, 0))
+            _ba.screenmessage('Ending stress test...', color=(1, 1, 0))
     except Exception:
         pass
     _ba.app.stress_test_reset_timer = None
@@ -112,7 +112,7 @@ def start_stress_test(args: Dict[str, Any]) -> None:
     from ba._dualteamsession import DualTeamSession
     from ba._freeforallsession import FreeForAllSession
     from ba._enums import TimeType, TimeFormat
-    bs_config = _ba.app.config
+    appconfig = _ba.app.config
     playlist_type = args['playlist_type']
     if playlist_type == 'Random':
         if random.random() < 0.5:
@@ -122,15 +122,15 @@ def start_stress_test(args: Dict[str, Any]) -> None:
     _ba.screenmessage('Running Stress Test (listType="' + playlist_type +
                       '", listName="' + args['playlist_name'] + '")...')
     if playlist_type == 'Teams':
-        bs_config['Team Tournament Playlist Selection'] = args['playlist_name']
-        bs_config['Team Tournament Playlist Randomize'] = 1
+        appconfig['Team Tournament Playlist Selection'] = args['playlist_name']
+        appconfig['Team Tournament Playlist Randomize'] = 1
         _ba.timer(1.0,
                   Call(_ba.pushcall, Call(_ba.new_host_session,
                                           DualTeamSession)),
                   timetype=TimeType.REAL)
     else:
-        bs_config['Free-for-All Playlist Selection'] = args['playlist_name']
-        bs_config['Free-for-All Playlist Randomize'] = 1
+        appconfig['Free-for-All Playlist Selection'] = args['playlist_name']
+        appconfig['Free-for-All Playlist Randomize'] = 1
         _ba.timer(1.0,
                   Call(_ba.pushcall,
                        Call(_ba.new_host_session, FreeForAllSession)),
@@ -156,7 +156,7 @@ def _reset_stress_test(args: Dict[str, Any]) -> None:
 
 def run_gpu_benchmark() -> None:
     """Kick off a benchmark to test gpu speeds."""
-    _ba.screenmessage("FIXME: Not wired up yet.", color=(1, 0, 0))
+    _ba.screenmessage('FIXME: Not wired up yet.', color=(1, 0, 0))
 
 
 def run_media_reload_benchmark() -> None:
@@ -174,7 +174,7 @@ def run_media_reload_benchmark() -> None:
                 _lang.get_resource('debugWindow.totalReloadTimeText').replace(
                     '${TIME}', str(_ba.time(TimeType.REAL) - start_time_2)))
             _ba.print_load_info()
-            if _ba.app.config.resolve("Texture Quality") != 'High':
+            if _ba.app.config.resolve('Texture Quality') != 'High':
                 _ba.screenmessage(_lang.get_resource(
                     'debugWindow.reloadBenchmarkBestResultsText'),
                                   color=(1, 1, 0))

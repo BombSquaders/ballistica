@@ -38,8 +38,8 @@ def formatcode(projroot: Path, full: bool) -> None:
     """Run clang-format on all of our source code (multithreaded)."""
     import time
     import concurrent.futures
-    from efrotools import get_files_hash
     from multiprocessing import cpu_count
+    from efrotools import get_files_hash
     os.chdir(projroot)
     cachepath = Path(projroot, 'config/.cache-formatcode')
     if full and cachepath.exists():
@@ -66,13 +66,8 @@ def formatcode(projroot: Path, full: bool) -> None:
         sys.stdout.flush()
         return {'f': filename, 't': duration}
 
-    # NOTE: using fewer workers than we have logical procs for now;
-    # we're bottlenecked by one or two long running instances
-    # so it actually helps to lighten the load around them.
-    # may want to revisit later when we have everything chopped up
-    # better
-    with concurrent.futures.ThreadPoolExecutor(max_workers=cpu_count() //
-                                               2) as executor:
+    with concurrent.futures.ThreadPoolExecutor(
+            max_workers=cpu_count()) as executor:
         # Converting this to a list will propagate any errors.
         list(executor.map(format_file, dirtyfiles))
 
@@ -87,17 +82,22 @@ def formatcode(projroot: Path, full: bool) -> None:
 
 def cpplint(projroot: Path, full: bool) -> None:
     """Run lint-checking on all code deemed lint-able."""
+    # pylint: disable=too-many-locals
+    import tempfile
     from concurrent.futures import ThreadPoolExecutor
-    from efrotools import get_config
     from multiprocessing import cpu_count
+    from efrotools import getconfig
+    from efro.terminal import Clr
+    from efro.error import CleanError
 
     os.chdir(projroot)
     filenames = get_code_filenames(projroot)
-    if any(' ' in name for name in filenames):
-        raise Exception('found space in path; unexpected')
+    for fpath in filenames:
+        if ' ' in fpath:
+            raise Exception(f'Found space in path {fpath}; unexpected.')
 
     # Check the config for a list of ones to ignore.
-    code_blacklist: List[str] = get_config(projroot).get(
+    code_blacklist: List[str] = getconfig(projroot).get(
         'cpplint_blacklist', [])
 
     # Just pretend blacklisted ones don't exist.
@@ -115,28 +115,64 @@ def cpplint(projroot: Path, full: bool) -> None:
     dirtyfiles = cache.get_dirty_files()
 
     if dirtyfiles:
-        print(f'CppLint checking {len(dirtyfiles)} file(s)...')
+        print(f'{Clr.BLU}CppLint checking'
+              f' {len(dirtyfiles)} file(s)...{Clr.RST}')
+
+    # We want to do a few custom modifications to the cpplint module...
+    try:
+        import cpplint as cpplintmodule
+    except Exception:
+        raise CleanError('Unable to import cpplint')
+    with open(cpplintmodule.__file__) as infile:
+        codelines = infile.read().splitlines()
+    cheadersline = codelines.index('_C_HEADERS = frozenset([')
+
+    # Extra headers we consider as valid C system headers.
+    c_headers = [
+        'malloc.h', 'tchar.h', 'jni.h', 'android/log.h', 'EGL/egl.h',
+        'libgen.h', 'linux/netlink.h', 'linux/rtnetlink.h', 'android/bitmap.h',
+        'android/log.h', 'uuid/uuid.h', 'cxxabi.h', 'direct.h', 'shellapi.h',
+        'rpc.h', 'io.h'
+    ]
+    codelines.insert(cheadersline + 1, ''.join(f"'{h}'," for h in c_headers))
+
+    # Skip unapproved C++ headers check (it flags <mutex>, <thread>, etc.)
+    headercheckline = codelines.index(
+        "  if include and include.group(1) in ('cfenv',")
+    codelines[headercheckline] = (
+        "  if False and include and include.group(1) in ('cfenv',")
 
     def lint_file(filename: str) -> None:
-        result = subprocess.call(['cpplint', '--root=src', filename])
+        result = subprocess.call(['cpplint', '--root=src', filename], env=env)
         if result != 0:
-            raise Exception(f'Linting failed for {filename}')
+            raise CleanError(
+                f'{Clr.RED}Cpplint failed for {filename}.{Clr.RST}')
 
-    with ThreadPoolExecutor(max_workers=cpu_count() // 2) as executor:
-        # Converting this to a list will propagate any errors.
-        list(executor.map(lint_file, dirtyfiles))
+    with tempfile.TemporaryDirectory() as tmpdir:
+
+        # Write our replacement module, make it discoverable, then run.
+        with open(tmpdir + '/cpplint.py', 'w') as outfile:
+            outfile.write('\n'.join(codelines))
+        env = os.environ.copy()
+        env['PYTHONPATH'] = tmpdir
+
+        with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
+            # Converting this to a list will propagate any errors.
+            list(executor.map(lint_file, dirtyfiles))
 
     if dirtyfiles:
         cache.mark_clean(filenames)
         cache.write()
-    print(f'CppLint: all {len(filenames)} files are passing.', flush=True)
+    print(
+        f'{Clr.GRN}CppLint: all {len(filenames)} files are passing.{Clr.RST}',
+        flush=True)
 
 
 def get_code_filenames(projroot: Path) -> List[str]:
     """Return the list of files to lint-check or auto-formatting."""
-    from efrotools import get_config
+    from efrotools import getconfig
     exts = ('.h', '.c', '.cc', '.cpp', '.cxx', '.m', '.mm')
-    places = get_config(projroot).get('code_source_dirs', None)
+    places = getconfig(projroot).get('code_source_dirs', None)
     if places is None:
         raise RuntimeError('code_source_dirs not declared in config')
     codefilenames = []
@@ -153,8 +189,8 @@ def formatscripts(projroot: Path, full: bool) -> None:
     """Runs yapf on all our scripts (multithreaded)."""
     import time
     from concurrent.futures import ThreadPoolExecutor
-    from efrotools import get_files_hash
     from multiprocessing import cpu_count
+    from efrotools import get_files_hash
     os.chdir(projroot)
     cachepath = Path(projroot, 'config/.cache-formatscripts')
     if full and cachepath.exists():
@@ -178,12 +214,7 @@ def formatscripts(projroot: Path, full: bool) -> None:
         print(f'Formatted {filename} in {duration:.2f} seconds.')
         sys.stdout.flush()
 
-    # NOTE: using fewer workers than we have logical procs for now;
-    # we're bottlenecked by one or two long running instances
-    # so it actually helps to lighten the load around them.
-    # may want to revisit later when we have everything chopped up
-    # better
-    with ThreadPoolExecutor(max_workers=cpu_count() // 2) as executor:
+    with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
         # Convert the futures to a list to propagate any errors even
         # though there are no return values we use.
         list(executor.map(format_file, dirtyfiles))
@@ -218,9 +249,9 @@ def _should_include_script(fnamefull: str) -> bool:
 
 def get_script_filenames(projroot: Path) -> List[str]:
     """Return the Python filenames to lint-check or auto-format."""
-    from efrotools import get_config
+    from efrotools import getconfig
     filenames = set()
-    places = get_config(projroot).get('python_source_dirs', None)
+    places = getconfig(projroot).get('python_source_dirs', None)
     if places is None:
         raise RuntimeError('python_source_dirs not declared in config')
     for place in places:
@@ -235,9 +266,27 @@ def get_script_filenames(projroot: Path) -> List[str]:
     return sorted(list(f for f in filenames if 'flycheck_' not in f))
 
 
+def runpylint(projroot: Path, filenames: List[str]) -> None:
+    """Run Pylint explicitly on files."""
+
+    pylintrc = Path(projroot, '.pylintrc')
+    if not os.path.isfile(pylintrc):
+        raise Exception('pylintrc not found where expected')
+
+    # Technically we could just run pylint standalone via command line here,
+    # but let's go ahead and run it inline so we're consistent with our cached
+    # full-project version.
+    _run_pylint(projroot,
+                pylintrc,
+                cache=None,
+                dirtyfiles=filenames,
+                allfiles=None)
+
+
 def pylint(projroot: Path, full: bool, fast: bool) -> None:
-    """Run lint-checking on all scripts deemed lint-able."""
+    """Run Pylint on all scripts in our project (with smart dep tracking)."""
     from efrotools import get_files_hash
+    from efro.terminal import Clr
     pylintrc = Path(projroot, '.pylintrc')
     if not os.path.isfile(pylintrc):
         raise Exception('pylintrc not found where expected')
@@ -270,22 +319,17 @@ def pylint(projroot: Path, full: bool, fast: bool) -> None:
     dirtyfiles.sort(reverse=True, key=lambda f: os.stat(f).st_mtime)
 
     if dirtyfiles:
-        print(f'Pylint checking {len(dirtyfiles)} file(s)...', flush=True)
+        print(
+            f'{Clr.BLU}Pylint checking {len(dirtyfiles)} file(s)...{Clr.RST}',
+            flush=True)
         try:
-            _run_script_lint(projroot, pylintrc, cache, dirtyfiles, filenames)
-        except Exception:
-            # Note: even if we fail here, we still want to
+            _run_pylint(projroot, pylintrc, cache, dirtyfiles, filenames)
+        finally:
+            # No matter what happens, we still want to
             # update our disk cache (since some lints may have passed).
-            print('Pylint failed.', flush=True)
-
-            # Hmm; this can be handy sometimes; perhaps should add an env
-            # var to control it?
-            if bool(False):
-                import traceback
-                traceback.print_exc()
             cache.write()
-            sys.exit(255)
-    print(f'Pylint: all {len(filenames)} files are passing.', flush=True)
+    print(f'{Clr.GRN}Pylint: all {len(filenames)} files are passing.{Clr.RST}',
+          flush=True)
 
     cache.write()
 
@@ -349,32 +393,39 @@ def _dirty_dep_check(fname: str, filestates: Dict[str, bool], cache: FileCache,
     return dirty
 
 
-def _run_script_lint(projroot: Path, pylintrc: Union[Path, str],
-                     cache: FileCache, dirtyfiles: List[str],
-                     allfiles: List[str]) -> Dict[str, Any]:
+def _run_pylint(projroot: Path, pylintrc: Union[Path, str],
+                cache: Optional[FileCache], dirtyfiles: List[str],
+                allfiles: Optional[List[str]]) -> Dict[str, Any]:
     import time
     from pylint import lint
+    from efro.error import CleanError
+    from efro.terminal import Clr
     start_time = time.time()
-    args = ['--rcfile', str(pylintrc)]
+    args = ['--rcfile', str(pylintrc), '--output-format=colorized']
 
     args += dirtyfiles
     name = f'{len(dirtyfiles)} file(s)'
     run = lint.Run(args, do_exit=False)
-    result = _apply_pylint_run_to_cache(projroot, run, dirtyfiles, allfiles,
-                                        cache)
-    if result != 0:
-        raise Exception(f'Linting failed for {result} file(s).')
+    if cache is not None:
+        assert allfiles is not None
+        result = _apply_pylint_run_to_cache(projroot, run, dirtyfiles,
+                                            allfiles, cache)
+        if result != 0:
+            raise CleanError(f'Pylint failed for {result} file(s).')
 
-    # Sanity check: when the linter fails we should always be failing too.
-    # If not, it means we're probably missing something and incorrectly
-    # marking a failed file as clean.
-    if run.linter.msg_status != 0 and result == 0:
-        raise Exception('linter returned non-zero result but we did not;'
-                        ' this is probably a bug.')
-    # result = run.linter.msg_status
-    # we can run
+        # Sanity check: when the linter fails we should always be failing too.
+        # If not, it means we're probably missing something and incorrectly
+        # marking a failed file as clean.
+        if run.linter.msg_status != 0 and result == 0:
+            raise RuntimeError('Pylint linter returned non-zero result'
+                               ' but we did not; this is probably a bug.')
+    else:
+        if run.linter.msg_status != 0:
+            raise CleanError('Pylint failed.')
+
     duration = time.time() - start_time
-    print(f'Pylint passed for {name} in {duration:.1f} seconds.')
+    print(f'{Clr.GRN}Pylint passed for {name}'
+          f' in {duration:.1f} seconds.{Clr.RST}')
     sys.stdout.flush()
     return {'f': dirtyfiles, 't': duration}
 
@@ -385,7 +436,8 @@ def _apply_pylint_run_to_cache(projroot: Path, run: Any, dirtyfiles: List[str],
     # pylint: disable=too-many-branches
     # pylint: disable=too-many-statements
     from astroid import modutils
-    from efrotools import get_config
+    from efrotools import getconfig
+    from efro.error import CleanError
 
     # First off, build a map of dirtyfiles to module names
     # (and the corresponding reverse map).
@@ -415,7 +467,7 @@ def _apply_pylint_run_to_cache(projroot: Path, run: Any, dirtyfiles: List[str],
 
     # Update dependencies for what we just ran.
     # A run leaves us with a map of modules to a list of the modules that
-    # imports them.  We want the opposite though: for each of our modules
+    # imports them. We want the opposite though: for each of our modules
     # we want a list of the modules it imports.
     reversedeps = {}
 
@@ -432,7 +484,7 @@ def _apply_pylint_run_to_cache(projroot: Path, run: Any, dirtyfiles: List[str],
             else:
                 untracked_deps.add(mname)
 
-    ignored_untracked_deps: List[str] = get_config(projroot).get(
+    ignored_untracked_deps: List[str] = getconfig(projroot).get(
         'pylint_ignored_untracked_deps', [])
 
     # Add a few that this package itself triggers.
@@ -442,8 +494,8 @@ def _apply_pylint_run_to_cache(projroot: Path, run: Any, dirtyfiles: List[str],
     untracked_deps = set(dep for dep in untracked_deps
                          if dep not in ignored_untracked_deps)
     if untracked_deps:
-        raise Exception(
-            f'Found untracked dependencies: {untracked_deps}.'
+        raise CleanError(
+            f'Pylint found untracked dependencies: {untracked_deps}.'
             ' If these are external to your project, add them to'
             ' "pylint_ignored_untracked_deps" in the project config.')
 
@@ -453,10 +505,8 @@ def _apply_pylint_run_to_cache(projroot: Path, run: Any, dirtyfiles: List[str],
     for fname in dirtyfiles:
         fmod = paths_to_names[fname]
         if fmod not in deps:
-
-            # Since this code is a bit flaky, lets always announce when
-            # we come up empty and keep a whitelist of expected values to
-            # ignore.
+            # Since this code is a bit flaky, lets always announce when we
+            # come up empty and keep a whitelist of expected values to ignore.
             no_deps_modules.add(fmod)
             depsval: List[str] = []
         else:
@@ -512,14 +562,16 @@ def _filter_module_name(mpath: str) -> str:
     return mpath[:-9] if mpath.endswith('.__init__') else mpath
 
 
-def runmypy(filenames: List[str],
+def runmypy(projroot: Path,
+            filenames: List[str],
             full: bool = False,
             check: bool = True) -> None:
     """Run MyPy on provided filenames."""
     from efrotools import PYTHON_BIN
     args = [
         PYTHON_BIN, '-m', 'mypy', '--pretty', '--no-error-summary',
-        '--config-file', '.mypy.ini'
+        '--config-file',
+        str(Path(projroot, '.mypy.ini'))
     ] + filenames
     if full:
         args.insert(args.index('mypy') + 1, '--no-incremental')
@@ -529,22 +581,26 @@ def runmypy(filenames: List[str],
 def mypy(projroot: Path, full: bool) -> None:
     """Type check all of our scripts using mypy."""
     import time
+    from efro.terminal import Clr
+    from efro.error import CleanError
     filenames = get_script_filenames(projroot)
-    print('Running Mypy ' + ('(full)' if full else '(incremental)') + '...',
-          flush=True)
+    desc = '(full)' if full else '(incremental)'
+    print(f'{Clr.BLU}Running Mypy {desc}...{Clr.RST}', flush=True)
     starttime = time.time()
     try:
-        runmypy(filenames, full)
+        runmypy(projroot, filenames, full)
     except Exception:
-        print('Mypy: fail.')
-        sys.exit(255)
+        raise CleanError('Mypy failed.')
     duration = time.time() - starttime
-    print(f'Mypy passed in {duration:.1f} seconds.', flush=True)
+    print(f'{Clr.GRN}Mypy passed in {duration:.1f} seconds.{Clr.RST}',
+          flush=True)
 
 
 def dmypy(projroot: Path) -> None:
     """Type check all of our scripts using mypy in daemon mode."""
     import time
+    from efro.terminal import Clr
+    from efro.error import CleanError
     filenames = get_script_filenames(projroot)
 
     # Special case; explicitly kill the daemon.
@@ -561,10 +617,10 @@ def dmypy(projroot: Path) -> None:
         ] + filenames
         subprocess.run(args, check=True)
     except Exception:
-        print('Mypy: fail.')
-        sys.exit(255)
+        raise CleanError('Mypy daemon: fail.')
     duration = time.time() - starttime
-    print(f'Mypy daemon passed in {duration:.1f} seconds.', flush=True)
+    print(f'{Clr.GRN}Mypy daemon passed in {duration:.1f} seconds.{Clr.RST}',
+          flush=True)
 
 
 def _parse_idea_results(path: Path) -> int:
@@ -615,14 +671,19 @@ def _run_idea_inspections(projroot: Path,
     import tempfile
     import time
     import datetime
+    from efro.error import CleanError
+    from efro.terminal import Clr
     start_time = time.time()
-    print(f'{displayname} checking', len(scripts), 'file(s)...', flush=True)
+    print(
+        f'{Clr.BLU}{displayname} checking'
+        f' {len(scripts)} file(s)...{Clr.RST}',
+        flush=True)
     tmpdir = tempfile.TemporaryDirectory()
     iprof = Path(projroot, '.idea/inspectionProfiles/Default.xml')
     if not iprof.exists():
         iprof = Path(projroot, '.idea/inspectionProfiles/Project_Default.xml')
         if not iprof.exists():
-            raise Exception("No default inspection profile found.")
+            raise Exception('No default inspection profile found.')
     cmd = [str(inspect), str(projroot), str(iprof), tmpdir.name, '-v2']
     if inspectdir is not None:
         cmd += ['-d', str(inspectdir)]
@@ -632,7 +693,7 @@ def _run_idea_inspections(projroot: Path,
         """Print the time occasionally to make the log more informative."""
         while running:
             time.sleep(60)
-            print("Heartbeat", datetime.datetime.now(), flush=True)
+            print('Heartbeat', datetime.datetime.now(), flush=True)
 
     if verbose:
         import threading
@@ -652,20 +713,19 @@ def _run_idea_inspections(projroot: Path,
                     result.stdout, bytes) else str(result.stdout))
             print(f'{displayname} inspection failure stdout:\n{stdout}' +
                   f'{displayname} inspection failure stderr:\n{stderr}')
-        raise RuntimeError(f"{displayname} inspection failed.")
+        raise RuntimeError(f'{displayname} inspection failed.')
     files = [f for f in os.listdir(tmpdir.name) if not f.startswith('.')]
     total_errors = 0
     if files:
         for fname in files:
             total_errors += _parse_idea_results(Path(tmpdir.name, fname))
     if total_errors > 0:
-        raise RuntimeError(
-            f"{displayname} inspection found {total_errors} error(s).")
+        raise CleanError(f'{Clr.SRED}{displayname} inspection'
+                         f' found {total_errors} error(s).{Clr.RST}')
     duration = time.time() - start_time
-
     print(
-        f'{displayname} passed for {len(scripts)} files'
-        f' in {duration:.1f} seconds.',
+        f'{Clr.GRN}{displayname} passed for {len(scripts)} files'
+        f' in {duration:.1f} seconds.{Clr.RST}',
         flush=True)
 
 
@@ -680,6 +740,7 @@ def _run_idea_inspections_cached(cachepath: Path,
     # pylint: disable=too-many-locals
     import hashlib
     import json
+    from efro.terminal import Clr
     md5 = hashlib.md5()
 
     # Let's calc a single hash from the contents of all script files and only
@@ -717,8 +778,10 @@ def _run_idea_inspections_cached(cachepath: Path,
                               inspectdir=inspectdir)
         with open(cachepath, 'w') as outfile:
             outfile.write(json.dumps({'hash': current_hash}))
-    print(f'{displayname}: all {len(filenames)} files are passing.',
-          flush=True)
+    print(
+        f'{Clr.GRN}{displayname}: all {len(filenames)}'
+        f' files are passing.{Clr.RST}',
+        flush=True)
 
 
 def pycharm(projroot: Path, full: bool, verbose: bool) -> None:

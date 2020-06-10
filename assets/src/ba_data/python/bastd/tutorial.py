@@ -28,8 +28,8 @@
 # pylint: disable=missing-function-docstring, missing-class-docstring
 # pylint: disable=invalid-name
 # pylint: disable=too-many-locals
-# pylint: disable=unused-variable
 # pylint: disable=unused-argument
+# pylint: disable=unused-variable
 
 from __future__ import annotations
 
@@ -94,7 +94,7 @@ class ButtonPress:
             img = None
             color = None
         else:
-            raise Exception(f"invalid button: {self._button}")
+            raise Exception(f'invalid button: {self._button}')
 
         brightness = 4.0
         if color is not None:
@@ -167,7 +167,7 @@ class ButtonRelease:
             img = None
             color = None
         else:
-            raise Exception("invalid button: " + self._button)
+            raise Exception('invalid button: ' + self._button)
         if self._delay == 0:
             call()
         else:
@@ -181,9 +181,23 @@ class ButtonRelease:
                      timeformat=ba.TimeFormat.MILLISECONDS)
 
 
-class TutorialActivity(ba.Activity):
+class Player(ba.Player['Team']):
+    """Our player type for this game."""
 
-    def __init__(self, settings: Dict[str, Any] = None):
+    def __init__(self) -> None:
+        self.pressed = False
+
+
+class Team(ba.Team[Player]):
+    """Our team type for this game."""
+
+    def __init__(self) -> None:
+        pass
+
+
+class TutorialActivity(ba.Activity[Player, Team]):
+
+    def __init__(self, settings: dict = None):
         from bastd.maps import Rampage
         if settings is None:
             settings = {}
@@ -225,7 +239,6 @@ class TutorialActivity(ba.Activity):
         self.bomb_image_color = (1.0, 1.0, 1.0)
         self.pickup_image_color = (1.0, 1.0, 1.0)
         self.control_ui_nodes: List[ba.Node] = []
-        self._test_file = ''
         self.spazzes: Dict[int, basespaz.Spaz] = {}
         self.jump_image_color = (1.0, 1.0, 1.0)
         self._entries: List[Any] = []
@@ -386,9 +399,6 @@ class TutorialActivity(ba.Activity):
         ]
         for n in self.control_ui_nodes:
             n.opacity = 0.0
-        self._test_file = ('/Users/ericf/Library/Containers/'
-                           'net.froemling.ballisticacore/Data/'
-                           'Library/Application Support/Ballisticacore/foo.py')
         self._read_entries()
 
     def set_stick_image_position(self, x: float, y: float) -> None:
@@ -445,8 +455,8 @@ class TutorialActivity(ba.Activity):
                         diff = tval
                         a.cycle_times.append(diff)
                         ba.screenmessage(
-                            "cycle time: " + str(diff) + " (average: " +
-                            str(sum(a.cycle_times) / len(a.cycle_times)) + ")")
+                            'cycle time: ' + str(diff) + ' (average: ' +
+                            str(sum(a.cycle_times) / len(a.cycle_times)) + ')')
                     tval = ba.time(ba.TimeType.REAL,
                                    ba.TimeFormat.MILLISECONDS)
                     assert isinstance(tval, int)
@@ -462,7 +472,7 @@ class TutorialActivity(ba.Activity):
                         n.opacity = 0.0
                     a.set_stick_image_position(0, 0)
 
-            # noinspection PyUnusedLocal
+            # Can be used for debugging.
             class SetSpeed:
 
                 def __init__(self, speed: int):
@@ -552,7 +562,6 @@ class TutorialActivity(ba.Activity):
                     if self._flash:
                         ba.playsound(a.spawn_sound, position=pos)
 
-            # noinspection PyUnusedLocal
             class Powerup:
 
                 def __init__(self,
@@ -581,7 +590,6 @@ class TutorialActivity(ba.Activity):
                     powerupbox.PowerupBox(position=pos,
                                           poweruptype='punch').autoretain()
 
-            # noinspection PyUnusedLocal
             class Delay:
 
                 def __init__(self, time: int) -> None:
@@ -590,7 +598,6 @@ class TutorialActivity(ba.Activity):
                 def run(self, a: TutorialActivity) -> int:
                     return self._time
 
-            # noinspection PyUnusedLocal
             class AnalyticsScreen:
 
                 def __init__(self, screen: str) -> None:
@@ -599,7 +606,6 @@ class TutorialActivity(ba.Activity):
                 def run(self, a: TutorialActivity) -> None:
                     ba.set_analytics_screen(self._screen)
 
-            # noinspection PyUnusedLocal
             class DelayOld:
 
                 def __init__(self, time: int) -> None:
@@ -608,7 +614,6 @@ class TutorialActivity(ba.Activity):
                 def run(self, a: TutorialActivity) -> int:
                     return int(0.9 * self._time)
 
-            # noinspection PyUnusedLocal
             class DelayOld2:
 
                 def __init__(self, time: int) -> None:
@@ -745,7 +750,6 @@ class TutorialActivity(ba.Activity):
                 def __init__(self, delay: int = 0):
                     super().__init__('punch', delay=delay)
 
-            # noinspection PyUnusedLocal
             class PickUpRelease(ButtonRelease):
 
                 def __init__(self, delay: int = 0):
@@ -774,7 +778,6 @@ class TutorialActivity(ba.Activity):
                     assert a.text
                     a.text.text = self.text
 
-            # noinspection PyUnusedLocal
             class PrintPos:
 
                 def __init__(self, spaz_num: int = None):
@@ -789,7 +792,6 @@ class TutorialActivity(ba.Activity):
                     t = list(s.node.position)
                     print('RestorePos(' + str((t[0], t[1] - 1.0, t[2])) + '),')
 
-            # noinspection PyUnusedLocal
             class RestorePos:
 
                 def __init__(self, pos: Sequence[float]) -> None:
@@ -823,7 +825,7 @@ class TutorialActivity(ba.Activity):
                     elif self._celebrate_type == 'both':
                         s.node.handlemessage('celebrate', self._duration)
                     else:
-                        raise Exception("invalid celebrate type " +
+                        raise Exception('invalid celebrate type ' +
                                         self._celebrate_type)
 
             self._entries = [
@@ -838,7 +840,7 @@ class TutorialActivity(ba.Activity):
                     ba.Lstr(resource=self._r + '.phrase02Text',
                             subs=[
                                 ('${APP_NAME}', ba.Lstr(resource='titleText'))
-                            ])),  # welcome to ballisticacore
+                            ])),  # welcome to <appname>
                 DelayOld(80),
                 Run(release=False),
                 Jump(release=False),
@@ -2275,7 +2277,7 @@ class TutorialActivity(ba.Activity):
                 Celebrate(),
                 DelayOld(2000),
                 KillSpaz(1),
-                Text(""),
+                Text(''),
                 Move(0.5, -0.5),
                 DelayOld(1000),
                 Move(0, -0.1),
@@ -2339,7 +2341,7 @@ class TutorialActivity(ba.Activity):
                                             ba.WeakCall(self._read_entries))
 
     def _update_skip_votes(self) -> None:
-        count = sum(1 for player in self.players if player.gamedata['pressed'])
+        count = sum(1 for player in self.players if player.pressed)
         assert self._skip_count_text
         self._skip_count_text.text = ba.Lstr(
             resource=self._r + '.skipVoteCountText',
@@ -2358,7 +2360,7 @@ class TutorialActivity(ba.Activity):
             self._skip_text.text = ''
             self.end()
 
-    def _player_pressed_button(self, player: ba.Player) -> None:
+    def _player_pressed_button(self, player: Player) -> None:
 
         # Special case: if there's only one player, we give them a
         # warning on their first press (some players were thinking the
@@ -2372,7 +2374,7 @@ class TutorialActivity(ba.Activity):
             self._skip_text.scale = 1.3
             incr = 50
             t = incr
-            for i in range(6):
+            for _i in range(6):
                 ba.timer(t,
                          ba.Call(setattr, self._skip_text, 'color',
                                  (1, 0.5, 0.1)),
@@ -2385,11 +2387,11 @@ class TutorialActivity(ba.Activity):
             ba.timer(6.0, ba.WeakCall(self._revert_confirm))
             return
 
-        player.gamedata['pressed'] = True
+        player.pressed = True
 
         # test...
         if not all(self.players):
-            ba.print_error("Nonexistent player in _player_pressed_button: " +
+            ba.print_error('Nonexistent player in _player_pressed_button: ' +
                            str([str(p) for p in self.players]) + ': we are ' +
                            str(player))
 
@@ -2402,17 +2404,18 @@ class TutorialActivity(ba.Activity):
         self._skip_text.color = (1, 1, 1)
         self._issued_warning = False
 
-    def on_player_join(self, player: ba.Player) -> None:
+    def on_player_join(self, player: Player) -> None:
         super().on_player_join(player)
-        player.gamedata['pressed'] = False
-        # we just wanna know if this player presses anything..
-        player.assign_input_call(
-            ('jumpPress', 'punchPress', 'bombPress', 'pickUpPress'),
+
+        # We just wanna know if this player presses anything.
+        player.assigninput(
+            (ba.InputType.JUMP_PRESS, ba.InputType.PUNCH_PRESS,
+             ba.InputType.BOMB_PRESS, ba.InputType.PICK_UP_PRESS),
             ba.Call(self._player_pressed_button, player))
 
-    def on_player_leave(self, player: ba.Player) -> None:
+    def on_player_leave(self, player: Player) -> None:
         if not all(self.players):
-            ba.print_error("Nonexistent player in on_player_leave: " +
+            ba.print_error('Nonexistent player in on_player_leave: ' +
                            str([str(p) for p in self.players]) + ': we are ' +
                            str(player))
         super().on_player_leave(player)

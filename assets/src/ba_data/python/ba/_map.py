@@ -126,7 +126,7 @@ def get_unowned_maps() -> List[str]:
     """
     from ba import _store
     unowned_maps: Set[str] = set()
-    if _ba.app.subplatform != 'headless':
+    if not _ba.app.headless_build:
         for map_section in _store.get_store_layout()['maps']:
             for mapitem in map_section['items']:
                 if not _ba.get_purchased(mapitem):
@@ -144,7 +144,8 @@ def get_map_class(name: str) -> Type[ba.Map]:
     try:
         return _ba.app.maps[name]
     except Exception:
-        raise Exception("Map not found: '" + name + "'")
+        from ba import _error
+        raise _error.NotFoundError("Map not found: '" + name + "'")
 
 
 class Map(Actor):
@@ -156,7 +157,7 @@ class Map(Actor):
     functionality comprising a game map.
     """
     defs: Any = None
-    name = "Map"
+    name = 'Map'
     _playtypes: List[str] = []
 
     @classmethod
@@ -191,7 +192,7 @@ class Map(Actor):
         return None
 
     @classmethod
-    def get_name(cls) -> str:
+    def getname(cls) -> str:
         """Return the unique name of this map, in English."""
         return cls.name
 
@@ -218,24 +219,26 @@ class Map(Actor):
         try:
             self.preloaddata = _ba.getactivity().preloads[type(self)]
         except Exception:
-            raise Exception('Preload data not found for ' + str(type(self)) +
-                            '; make sure to call the type\'s preload()'
-                            ' staticmethod in the activity constructor')
+            from ba import _error
+            raise _error.NotFoundError(
+                'Preload data not found for ' + str(type(self)) +
+                '; make sure to call the type\'s preload()'
+                ' staticmethod in the activity constructor')
 
         # Set various globals.
-        gnode = _gameutils.sharedobj('globals')
+        gnode = _ba.getactivity().globalsnode
 
         # Set area-of-interest bounds.
-        aoi_bounds = self.get_def_bound_box("area_of_interest_bounds")
+        aoi_bounds = self.get_def_bound_box('area_of_interest_bounds')
         if aoi_bounds is None:
-            print('WARNING: no "aoi_bounds" found for map:', self.get_name())
+            print('WARNING: no "aoi_bounds" found for map:', self.getname())
             aoi_bounds = (-1, -1, -1, 1, 1, 1)
         gnode.area_of_interest_bounds = aoi_bounds
 
         # Set map bounds.
-        map_bounds = self.get_def_bound_box("map_bounds")
+        map_bounds = self.get_def_bound_box('map_bounds')
         if map_bounds is None:
-            print('WARNING: no "map_bounds" found for map:', self.get_name())
+            print('WARNING: no "map_bounds" found for map:', self.getname())
             map_bounds = (-30, -10, -30, 30, 100, 30)
         _ba.set_map_bounds(map_bounds)
 
@@ -268,7 +271,7 @@ class Map(Actor):
                                  or [(0, 0, 0, 0, 0, 0)])
         self.spawn_by_flag_points = (self.get_def_points('spawn_by_flag')
                                      or [(0, 0, 0, 0, 0, 0)])
-        self.flag_points = self.get_def_points("flag") or [(0, 0, 0)]
+        self.flag_points = self.get_def_points('flag') or [(0, 0, 0)]
 
         # We just want points.
         self.flag_points = [p[:3] for p in self.flag_points]
@@ -282,7 +285,7 @@ class Map(Actor):
         self.powerup_spawn_points = ([
             p[:3] for p in self.powerup_spawn_points
         ])
-        self.tnt_points = self.get_def_points("tnt") or []
+        self.tnt_points = self.get_def_points('tnt') or []
 
         # We just want points.
         self.tnt_points = [p[:3] for p in self.tnt_points]
@@ -331,7 +334,7 @@ class Map(Actor):
         If none are defined, returns an empty list.
         """
         point_list = []
-        if self.defs and name + "1" in self.defs.points:
+        if self.defs and name + '1' in self.defs.points:
             i = 1
             while name + str(i) in self.defs.points:
                 pts = self.defs.points[name + str(i)]
@@ -339,7 +342,7 @@ class Map(Actor):
                     point_list.append(pts)
                 else:
                     if len(pts) != 3:
-                        raise Exception("invalid point")
+                        raise ValueError('invalid point')
                     point_list.append(pts + (0, 0, 0))
                 i += 1
         return point_list
@@ -364,12 +367,8 @@ class Map(Actor):
         # Get positions for existing players.
         player_pts = []
         for player in players:
-            try:
-                if player.node:
-                    pnt = _ba.Vec3(player.node.position)
-                    player_pts.append(pnt)
-            except Exception as exc:
-                print('EXC in get_ffa_start_position:', exc)
+            if player.is_alive():
+                player_pts.append(player.position)
 
         def _getpt() -> Sequence[float]:
             point = self.ffa_spawn_points[self._next_ffa_start_index]
@@ -427,5 +426,5 @@ class Map(Actor):
 def register_map(maptype: Type[Map]) -> None:
     """Register a map class with the game."""
     if maptype.name in _ba.app.maps:
-        raise Exception("map \"" + maptype.name + "\" already registered")
+        raise RuntimeError('map "' + maptype.name + '" already registered')
     _ba.app.maps[maptype.name] = maptype

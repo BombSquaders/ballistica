@@ -45,17 +45,17 @@ def get_device_value(device: ba.InputDevice, name: str) -> Any:
     useragentstring = app.user_agent_string
     platform = app.platform
     subplatform = app.subplatform
-    bs_config = _ba.app.config
+    appconfig = _ba.app.config
 
     # If there's an entry in our config for this controller, use it.
-    if "Controllers" in bs_config:
-        ccfgs = bs_config["Controllers"]
+    if 'Controllers' in appconfig:
+        ccfgs = appconfig['Controllers']
         if devicename in ccfgs:
             mapping = None
             if unique_id in ccfgs[devicename]:
                 mapping = ccfgs[devicename][unique_id]
-            elif "default" in ccfgs[devicename]:
-                mapping = ccfgs[devicename]["default"]
+            elif 'default' in ccfgs[devicename]:
+                mapping = ccfgs[devicename]['default']
             if mapping is not None:
                 return mapping.get(name, -1)
 
@@ -223,9 +223,8 @@ def get_device_value(device: ba.InputDevice, name: str) -> Any:
                 'triggerRun2': 6,
                 'buttonIgnored': 11
             }.get(name, -1)
-        if (devicename in [
-                'Logitech Dual Action', 'Logitech Cordless RumblePad 2'
-        ]):
+        if (devicename
+                in ['Logitech Dual Action', 'Logitech Cordless RumblePad 2']):
             return {
                 'buttonJump': 2,
                 'buttonPunch': 1,
@@ -376,7 +375,7 @@ def get_device_value(device: ba.InputDevice, name: str) -> Any:
                 'triggerRun1': 18
             }.get(name, -1)
 
-        if devicename == "virtual-remote":
+        if devicename == 'virtual-remote':
             return {
                 'triggerRun2': 19,
                 'unassignedButtonsRun': False,
@@ -603,7 +602,7 @@ def get_input_device_config(device: ba.InputDevice,
     """
     cfg = _ba.app.config
     name = device.name
-    ccfgs: Dict[str, Any] = cfg.setdefault("Controllers", {})
+    ccfgs: Dict[str, Any] = cfg.setdefault('Controllers', {})
     ccfgs.setdefault(name, {})
     unique_id = device.unique_identifier
     if default:
@@ -622,15 +621,15 @@ def get_last_player_name_from_input_device(device: ba.InputDevice) -> str:
 
     (generally the last one used there)
     """
-    bs_config = _ba.app.config
+    appconfig = _ba.app.config
 
     # Look for a default player profile name for them;
     # otherwise default to their current random name.
     profilename = '_random'
     key_name = device.name + ' ' + device.unique_identifier
-    if ('Default Player Profiles' in bs_config
-            and key_name in bs_config['Default Player Profiles']):
-        profilename = bs_config['Default Player Profiles'][key_name]
+    if ('Default Player Profiles' in appconfig
+            and key_name in appconfig['Default Player Profiles']):
+        profilename = appconfig['Default Player Profiles'][key_name]
     if profilename == '_random':
         profilename = device.get_default_player_name()
     if profilename == '__account__':

@@ -28,13 +28,13 @@ import ba
 from bastd.activity.multiteamscore import MultiTeamScoreScreenActivity
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, Optional, Set
+    from typing import Any, Dict, Optional, Set, Tuple
 
 
 class FreeForAllVictoryScoreScreenActivity(MultiTeamScoreScreenActivity):
     """Score screen shown at after free-for-all rounds."""
 
-    def __init__(self, settings: Dict[str, Any]):
+    def __init__(self, settings: dict):
         super().__init__(settings=settings)
 
         # Keep prev activity alive while we fade in.
@@ -60,13 +60,17 @@ class FreeForAllVictoryScoreScreenActivity(MultiTeamScoreScreenActivity):
         player_order_prev = list(self.players)
         player_order_prev.sort(
             reverse=True,
-            key=lambda p:
-            (p.team.sessiondata['previous_score'], p.get_name(full=True)))
+            key=lambda p: (
+                p.team.sessionteam.customdata['previous_score'],
+                p.getname(full=True),
+            ))
         player_order = list(self.players)
         player_order.sort(reverse=True,
-                          key=lambda p:
-                          (p.team.sessiondata['score'], p.team.sessiondata[
-                              'score'], p.get_name(full=True)))
+                          key=lambda p: (
+                              p.team.sessionteam.customdata['score'],
+                              p.team.sessionteam.customdata['score'],
+                              p.getname(full=True),
+                          ))
 
         v_offs = -74.0 + spacing * len(player_order_prev) * 0.5
         delay1 = 1.3 + 0.1
@@ -78,8 +82,8 @@ class FreeForAllVictoryScoreScreenActivity(MultiTeamScoreScreenActivity):
             delay3 += 1.5
 
         ba.timer(0.3, ba.Call(ba.playsound, self._score_display_sound))
-        results = self.settings['results']
-        assert isinstance(results, ba.TeamGameResults)
+        results = self.settings_raw['results']
+        assert isinstance(results, ba.GameResults)
         self.show_player_scores(delay=0.001,
                                 results=results,
                                 scale=1.2,
@@ -161,7 +165,7 @@ class FreeForAllVictoryScoreScreenActivity(MultiTeamScoreScreenActivity):
                         0: ts_h_offs - 72.0 * scale,
                         transtime2: ts_h_offs - (72.0 + slide_amt) * scale
                     }))
-            txt = Text(ba.Lstr(value=player.get_name(full=True)),
+            txt = Text(ba.Lstr(value=player.getname(full=True)),
                        maxwidth=130.0,
                        scale=0.75 * scale,
                        position=(ts_h_offs - 50.0 * scale,
@@ -202,8 +206,9 @@ class FreeForAllVictoryScoreScreenActivity(MultiTeamScoreScreenActivity):
                         transtime2: ts_h_offs - (95.0 + slide_amt) * scale
                     }))
 
-            s_txt = _scoretxt(str(player.team.sessiondata['previous_score']),
-                              80, 0, False, 0, 1.0)
+            s_txt = _scoretxt(
+                str(player.team.sessionteam.customdata['previous_score']), 80,
+                0, False, 0, 1.0)
             ba.timer(
                 tdelay + delay2,
                 ba.WeakCall(
@@ -219,8 +224,9 @@ class FreeForAllVictoryScoreScreenActivity(MultiTeamScoreScreenActivity):
                         transtime2: ts_h_offs + (80.0 - slide_amt) * scale
                     }))
 
-            score_change = (player.team.sessiondata['score'] -
-                            player.team.sessiondata['previous_score'])
+            score_change = (
+                player.team.sessionteam.customdata['score'] -
+                player.team.sessionteam.customdata['previous_score'])
             if score_change > 0:
                 xval = 113
                 yval = 3.0
@@ -257,12 +263,11 @@ class FreeForAllVictoryScoreScreenActivity(MultiTeamScoreScreenActivity):
                     tdelay + delay1,
                     ba.Call(_safesetattr, s_txt.node, 'color', (1, 1, 1, 1)))
                 for j in range(score_change):
-                    ba.timer(
-                        (tdelay + delay1 + 0.15 * j),
-                        ba.Call(
-                            _safesetattr, s_txt.node, 'text',
-                            str(player.team.sessiondata['previous_score'] + j +
-                                1)))
+                    ba.timer((tdelay + delay1 + 0.15 * j),
+                             ba.Call(
+                                 _safesetattr, s_txt.node, 'text',
+                                 str(player.team.sessionteam.
+                                     customdata['previous_score'] + j + 1)))
                     tfin = tdelay + delay1 + 0.15 * j
                     if tfin not in sound_times:
                         sound_times.add(tfin)

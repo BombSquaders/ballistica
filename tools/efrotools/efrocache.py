@@ -30,18 +30,15 @@ from __future__ import annotations
 
 import os
 import subprocess
+import json
 from typing import TYPE_CHECKING
 from multiprocessing import cpu_count
 from concurrent.futures import ThreadPoolExecutor
 
+from efro.terminal import Clr
+
 if TYPE_CHECKING:
     from typing import List, Dict, Tuple, Set
-
-CLRHDR = '\033[95m'  # Header.
-CLRGRN = '\033[92m'  # Green.
-CLRBLU = '\033[94m'  # Glue.
-CLRRED = '\033[91m'  # Red.
-CLREND = '\033[0m'  # End.
 
 BASE_URL = 'https://files.ballistica.net/cache/ba1/'
 
@@ -51,6 +48,8 @@ STRIP_END_TAG = '#__EFROCACHE_STRIP_END__'
 
 CACHE_DIR_NAME = '.efrocache'
 CACHE_MAP_NAME = '.efrocachemap'
+
+UPLOAD_STATE_CACHE_FILE = '.cache/efrocache_upload_state'
 
 
 def get_file_hash(path: str) -> str:
@@ -68,8 +67,7 @@ def get_file_hash(path: str) -> str:
 
 def get_target(path: str) -> None:
     """Fetch a target path from the cache, downloading if need be."""
-
-    import json
+    from efro.error import CleanError
     from efrotools import run
     with open(CACHE_MAP_NAME) as infile:
         efrocachemap = json.loads(infile.read())
@@ -100,8 +98,22 @@ def get_target(path: str) -> None:
     # download it.
     if not os.path.exists(local_cache_path):
         os.makedirs(os.path.dirname(local_cache_path), exist_ok=True)
-        print(f'Downloading: {CLRBLU}{path}{CLREND}')
-        run(f'curl --silent {url} > {local_cache_path_dl}')
+        print(f'Downloading: {Clr.SBLU}{path}{Clr.RST}')
+        result = subprocess.run(
+            f'curl --fail --silent {url} --output {local_cache_path_dl}',
+            shell=True,
+            check=False)
+
+        # We prune old cache files on the server, so its possible for one to
+        # be trying to build something the server can no longer provide.
+        # try to explain the situation.
+        if result.returncode == 22:
+            raise CleanError('Server gave an error.'
+                             ' Old build files may no longer be available;'
+                             ' make sure you are using a recent commit.')
+        if result.returncode != 0:
+            raise CleanError('Download failed; is your internet working?')
+
         run(f'mv {local_cache_path_dl} {local_cache_path}')
 
     # Ok we should have a valid .tar.gz file in our cache dir at this point.
@@ -160,20 +172,18 @@ def filter_makefile(makefile_dir: str, contents: str) -> str:
 
 
 def update_cache(makefile_dirs: List[str]) -> None:
-    """Given a list of directories containing makefiles, update caches."""
+    """Given a list of directories containing Makefiles, update caches."""
 
     import multiprocessing
-    from efrotools import run
     cpus = multiprocessing.cpu_count()
     fnames1: List[str] = []
     fnames2: List[str] = []
-    fhashes1: Set[str] = set()
     for path in makefile_dirs:
         cdp = f'cd {path} && ' if path else ''
 
         # First, make sure all cache files are built.
         mfpath = os.path.join(path, 'Makefile')
-        print(f'Building cache targets for {mfpath}...')
+        print(f'Building efrocache targets for {Clr.SBLU}{mfpath}{Clr.RST}...')
         subprocess.run(f'{cdp}make -j{cpus} efrocache-build',
                        shell=True,
                        check=True)
@@ -196,18 +206,60 @@ def update_cache(makefile_dirs: List[str]) -> None:
 
             # The main reason for this cache is to reduce round trips to
             # the staging server for tiny files, so let's include small files
-            # only here. For larger stuff its ok to have a request per file.
+            # only here. For larger stuff its ok to have a request per file..
             if os.path.getsize(fullpath) < 100000:
                 fnames1.append(fullpath)
             else:
                 fnames2.append(fullpath)
 
-    # if bool(True):
-    #     print("1", fnames1)
-    #     print("2", fnames2)
-    #     print('SO FAR SO GOOD')
-    #     sys.exit(0)
+    # Ok, we've got 2 lists of filenames that we need to cache in the cloud.
+    # First, however, let's look up modtimes for everything and if everything
+    # is exactly the same as last time we can skip this step.
+    hashes = _gen_hashes(fnames1 + fnames2)
+    if os.path.isfile(UPLOAD_STATE_CACHE_FILE):
+        with open(UPLOAD_STATE_CACHE_FILE) as infile:
+            hashes_existing = infile.read()
+    else:
+        hashes_existing = ''
+    if hashes == hashes_existing:
+        print(
+            f'{Clr.SBLU}Efrocache state unchanged;'
+            f' skipping cache push.{Clr.RST}',
+            flush=True)
+    else:
+        _upload_cache(fnames1, fnames2, hashes, hashes_existing)
 
+    print(f'{Clr.SBLU}Efrocache update successful!{Clr.RST}')
+
+    # Write the cache state so we can skip the next run if nothing changes.
+    os.makedirs(os.path.dirname(UPLOAD_STATE_CACHE_FILE), exist_ok=True)
+    with open(UPLOAD_STATE_CACHE_FILE, 'w') as outfile:
+        outfile.write(hashes)
+
+
+def _upload_cache(fnames1: List[str], fnames2: List[str], hashes_str: str,
+                  hashes_existing_str: str) -> None:
+    from efrotools import run
+
+    # First, if we've run before, print the files causing us to re-run:
+    if hashes_existing_str != '':
+        changed_files: Set[str] = set()
+        hashes = json.loads(hashes_str)
+        hashes_existing = json.loads(hashes_existing_str)
+        for fname, ftime in hashes.items():
+            if ftime != hashes_existing.get(fname, ''):
+                changed_files.add(fname)
+
+        # We've covered modifications and additions; add deletions:
+        for fname in hashes_existing:
+            if fname not in hashes:
+                changed_files.add(fname)
+        print(f'{Clr.SBLU}Updating efrocache due to'
+              f' {len(changed_files)} changes:{Clr.RST}')
+        for fname in sorted(changed_files):
+            print(f'  {Clr.SBLU}{fname}{Clr.RST}')
+
+    # Now do the thing.
     staging_dir = 'build/efrocache'
     mapping_file = 'build/efrocachemap'
     run(f'rm -rf {staging_dir}')
@@ -215,11 +267,11 @@ def update_cache(makefile_dirs: List[str]) -> None:
 
     _write_cache_files(fnames1, fnames2, staging_dir, mapping_file)
 
-    print(f"Starter cache includes {len(fnames1)} items;"
-          f" excludes {len(fnames2)}")
+    print(f'{Clr.SBLU}Starter cache includes {len(fnames1)} items;'
+          f' excludes {len(fnames2)}{Clr.RST}')
 
     # Sync all individual cache files to the staging server.
-    print('Pushing cache to staging...', flush=True)
+    print(f'{Clr.SBLU}Pushing cache to staging...{Clr.RST}', flush=True)
     run('rsync --progress --recursive build/efrocache/'
         ' ubuntu@ballistica.net:files.ballistica.net/cache/ba1/')
 
@@ -227,14 +279,28 @@ def update_cache(makefile_dirs: List[str]) -> None:
     run('ssh -oBatchMode=yes -oStrictHostKeyChecking=yes ubuntu@ballistica.net'
         ' "cd files.ballistica.net/cache/ba1 && python3 genstartercache.py"')
 
-    print(f'Cache update successful!')
+
+def _gen_hashes(fnames: List[str]) -> str:
+    import hashlib
+
+    def _get_file_hash(fname: str) -> Tuple[str, str]:
+        md5 = hashlib.md5()
+        with open(fname, mode='rb') as infile:
+            md5.update(infile.read())
+        return fname, md5.hexdigest()
+
+    # Now use all procs to hash the files efficiently.
+    with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
+        hashes = dict(executor.map(_get_file_hash, fnames))
+
+    return json.dumps(hashes, separators=(',', ':'))
 
 
 def _write_cache_files(fnames1: List[str], fnames2: List[str],
                        staging_dir: str, mapping_file: str) -> None:
-    fhashes1: Set[str] = set()
     import functools
-    import json
+    fhashes1: Set[str] = set()
+    fhashes2: Set[str] = set()
     mapping: Dict[str, str] = {}
     call = functools.partial(_write_cache_file, staging_dir)
 
@@ -245,21 +311,38 @@ def _write_cache_files(fnames1: List[str], fnames2: List[str],
         mapping[result[0]] = BASE_URL + result[1]
         fhashes1.add(result[1])
 
+    # Now finish up with the second set.
+    with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
+        results = executor.map(call, fnames2)
+    for result in results:
+        mapping[result[0]] = BASE_URL + result[1]
+        fhashes2.add(result[1])
+
     # We want the server to have a startercache.tar.xz file which contains
-    # this entire first set. It is much more efficient to build that file
+    # the entire first set. It is much more efficient to build that file
     # on the server than it is to build it here and upload the whole thing.
     # ...so let's simply write a script to generate it and upload that.
 
+    # Also let's have the script touch both sets of files so we can use
+    # mod-times to prune older files. (otherwise files that never change
+    # might have very old mod times)
     script = (
         'import os\n'
+        'import pathlib\n'
         'import subprocess\n'
         'fnames = ' + repr(fhashes1) + '\n'
+        'fnames2 = ' + repr(fhashes2) + '\n'
         'subprocess.run(["rm", "-rf", "efrocache"], check=True)\n'
         'print("Copying starter cache files...", flush=True)\n'
         'for fname in fnames:\n'
         '    dst = os.path.join("efrocache", fname)\n'
         '    os.makedirs(os.path.dirname(dst), exist_ok=True)\n'
         '    subprocess.run(["cp", fname, dst], check=True)\n'
+        'print("Touching full file set...", flush=True)\n'
+        'for fname in list(fnames) + list(fnames2):\n'
+        '    fpath = pathlib.Path(fname)\n'
+        '    assert fpath.exists()\n'
+        '    fpath.touch()\n'
         'print("Compressing starter cache archive...", flush=True)\n'
         'subprocess.run(["tar", "-Jcf", "tmp.tar.xz", "efrocache"],'
         ' check=True)\n'
@@ -270,12 +353,6 @@ def _write_cache_files(fnames1: List[str], fnames2: List[str],
 
     with open('build/efrocache/genstartercache.py', 'w') as outfile:
         outfile.write(script)
-
-    # Now finish up with the second set.
-    with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
-        results = executor.map(call, fnames2)
-        for result in results:
-            mapping[result[0]] = BASE_URL + result[1]
 
     with open(mapping_file, 'w') as outfile:
         outfile.write(json.dumps(mapping, indent=2, sort_keys=True))
@@ -299,8 +376,8 @@ def _write_cache_file(staging_dir: str, fname: str) -> Tuple[str, str]:
     path = os.path.join(staging_dir, hashpath)
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
-    # Fancy pipe stuff which will give us deterministic
-    # tar.gz files (no embedded timestamps)
+    # Fancy pipe stuff which will give us deterministic tar.gz files
+    # with no embedded timestamps.
     # Note: The 'COPYFILE_DISABLE' prevents mac tar from adding
     # file attributes/resource-forks to the archive as as ._filename.
     run(f'COPYFILE_DISABLE=1 tar cf - {fname} | gzip -n > {path}')
@@ -330,7 +407,6 @@ def _check_warm_start_entries(entries: List[Tuple[str, str]]) -> None:
 
 def warm_start_cache() -> None:
     """Run a pre-pass on the efrocache to improve efficiency."""
-    import json
     from efrotools import run
 
     # We maintain a starter-cache on the staging server, which
@@ -342,11 +418,12 @@ def warm_start_cache() -> None:
     # downloading thousands)
     if not os.path.exists(CACHE_DIR_NAME):
         print('Downloading asset starter-cache...', flush=True)
-        run(f'curl {BASE_URL}startercache.tar.xz > startercache.tar.xz')
+        run(f'curl --fail {BASE_URL}startercache.tar.xz'
+            f' --output startercache.tar.xz')
         print('Decompressing starter-cache...', flush=True)
         run('tar -xf startercache.tar.xz')
         run(f'mv efrocache {CACHE_DIR_NAME}')
-        run(f'rm startercache.tar.xz')
+        run('rm startercache.tar.xz')
         print('Starter-cache fetched successfully!'
               ' (should speed up asset builds)')
 

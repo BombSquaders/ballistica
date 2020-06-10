@@ -27,9 +27,9 @@ import time
 import weakref
 from typing import TYPE_CHECKING
 
-import _ba
 import ba
 from bastd.actor import spaz
+import _ba
 
 if TYPE_CHECKING:
     from typing import Any, List, Optional
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 # noinspection PyAttributeOutsideInit
 
 
-class MainMenuActivity(ba.Activity):
+class MainMenuActivity(ba.Activity[ba.Player, ba.Team]):
     """Activity showing the rotating main menu bg stuff."""
 
     _stdassets = ba.Dependency(ba.AssetPackage, 'stdassets@1')
@@ -182,7 +182,7 @@ class MainMenuActivity(ba.Activity):
         vr_bottom_fill_model = ba.getmodel('thePadVRFillBottom')
         vr_top_fill_model = ba.getmodel('thePadVRFillTop')
 
-        gnode = ba.sharedobj('globals')
+        gnode = self.globalsnode
         gnode.camera_mode = 'rotate'
 
         tint = (1.14, 1.1, 1.0)
@@ -348,7 +348,7 @@ class MainMenuActivity(ba.Activity):
                                 spc + self._message_duration: 0.0
                             }
                             assert self._text.node
-                            ba.animate(self._text.node, "opacity", keys)
+                            ba.animate(self._text.node, 'opacity', keys)
                             # {k: v
                             #  for k, v in list(keys.items())})
                             self._text.node.text = val
@@ -358,7 +358,7 @@ class MainMenuActivity(ba.Activity):
                 # need to make nodes and stuff.. should fix the serverget
                 # call so it.
                 activity = self._activity()
-                if activity is None or activity.is_expired():
+                if activity is None or activity.expired:
                     return
                 with ba.Context(activity):
 
@@ -692,13 +692,13 @@ class MainMenuActivity(ba.Activity):
             cmb: Optional[ba.Node]
             cmb2: Optional[ba.Node]
             if not shadow:
-                cmb = ba.newnode("combine",
+                cmb = ba.newnode('combine',
                                  owner=word_obj.node,
                                  attrs={'size': 2})
             else:
                 cmb = None
             if shadow:
-                cmb2 = ba.newnode("combine",
+                cmb2 = ba.newnode('combine',
                                   owner=word_obj.node,
                                   attrs={'size': 2})
             else:
@@ -719,9 +719,9 @@ class MainMenuActivity(ba.Activity):
                 keys2[time_v * self._ts] = val2 + 5
                 time_v += random.random() * 0.1
             if cmb is not None:
-                ba.animate(cmb, "input0", keys, loop=True)
+                ba.animate(cmb, 'input0', keys, loop=True)
             if cmb2 is not None:
-                ba.animate(cmb2, "input0", keys2, loop=True)
+                ba.animate(cmb2, 'input0', keys2, loop=True)
             keys = {}
             keys2 = {}
             time_v = 0
@@ -732,20 +732,20 @@ class MainMenuActivity(ba.Activity):
                 keys2[time_v * self._ts] = val2 - 9
                 time_v += random.random() * 0.1
             if cmb is not None:
-                ba.animate(cmb, "input1", keys, loop=True)
+                ba.animate(cmb, 'input1', keys, loop=True)
             if cmb2 is not None:
-                ba.animate(cmb2, "input1", keys2, loop=True)
+                ba.animate(cmb2, 'input1', keys2, loop=True)
 
         if not shadow:
             assert word_obj.node
-            ba.animate(word_obj.node, "project_scale", {
+            ba.animate(word_obj.node, 'project_scale', {
                 delay: 0.0,
                 delay + 0.1: scale * 1.1,
                 delay + 0.2: scale
             })
         else:
             assert word_obj.node
-            ba.animate(word_obj.node, "project_scale", {
+            ba.animate(word_obj.node, 'project_scale', {
                 delay: 0.0,
                 delay + 0.1: scale * 1.1,
                 delay + 0.2: scale
@@ -784,7 +784,7 @@ class MainMenuActivity(ba.Activity):
                            'model_transparent': mtrans,
                            'vr_depth': -10 + vr_depth_offset,
                            'rotate': rotate,
-                           'attach': "center",
+                           'attach': 'center',
                            'tilt_translate': 0.21,
                            'absolute_scale': True
                        }))
@@ -796,7 +796,7 @@ class MainMenuActivity(ba.Activity):
         # leave things still).
         assert logo.node
         if not ba.app.vr_mode:
-            cmb = ba.newnode("combine", owner=logo.node, attrs={'size': 2})
+            cmb = ba.newnode('combine', owner=logo.node, attrs={'size': 2})
             cmb.connectattr('output', logo.node, 'position')
             keys = {}
             time_v = 0.0
@@ -805,32 +805,32 @@ class MainMenuActivity(ba.Activity):
             for _i in range(10):
                 keys[time_v] = x + (random.random() - 0.5) * 0.7 * jitter_scale
                 time_v += random.random() * 0.1
-            ba.animate(cmb, "input0", keys, loop=True)
+            ba.animate(cmb, 'input0', keys, loop=True)
             keys = {}
             time_v = 0.0
             for _i in range(10):
                 keys[time_v * self._ts] = y + (random.random() -
                                                0.5) * 0.7 * jitter_scale
                 time_v += random.random() * 0.1
-            ba.animate(cmb, "input1", keys, loop=True)
+            ba.animate(cmb, 'input1', keys, loop=True)
         else:
             logo.node.position = (x, y)
 
-        cmb = ba.newnode("combine", owner=logo.node, attrs={"size": 2})
+        cmb = ba.newnode('combine', owner=logo.node, attrs={'size': 2})
 
         keys = {
             delay: 0.0,
             delay + 0.1: 700.0 * scale,
             delay + 0.2: 600.0 * scale
         }
-        ba.animate(cmb, "input0", keys)
-        ba.animate(cmb, "input1", keys)
-        cmb.connectattr("output", logo.node, "scale")
+        ba.animate(cmb, 'input0', keys)
+        ba.animate(cmb, 'input1', keys)
+        cmb.connectattr('output', logo.node, 'scale')
 
     def _start_preloads(self) -> None:
         # FIXME: The func that calls us back doesn't save/restore state
         #  or check for a dead activity so we have to do that ourself.
-        if self.is_expired():
+        if self.expired:
             return
         with ba.Context(self):
             _preload1()
@@ -850,16 +850,16 @@ def _preload1() -> None:
             'scrollWidgetShort', 'windowBGBlotch'
     ]:
         ba.getmodel(mname)
-    for tname in ["playerLineup", "lock"]:
+    for tname in ['playerLineup', 'lock']:
         ba.gettexture(tname)
     for tex in [
             'iconRunaround', 'iconOnslaught', 'medalComplete', 'medalBronze',
             'medalSilver', 'medalGold', 'characterIconMask'
     ]:
         ba.gettexture(tex)
-    ba.gettexture("bg")
-    from bastd.actor import powerupbox
-    powerupbox.get_factory()
+    ba.gettexture('bg')
+    from bastd.actor.powerupbox import PowerupBoxFactory
+    PowerupBoxFactory.get()
     ba.timer(0.1, _preload2)
 
 
@@ -867,33 +867,33 @@ def _preload2() -> None:
     # FIXME: Could integrate these loads with the classes that use them
     #  so they don't have to redundantly call the load
     #  (even if the actual result is cached).
-    for mname in ["powerup", "powerupSimple"]:
+    for mname in ['powerup', 'powerupSimple']:
         ba.getmodel(mname)
     for tname in [
-            "powerupBomb", "powerupSpeed", "powerupPunch", "powerupIceBombs",
-            "powerupStickyBombs", "powerupShield", "powerupImpactBombs",
-            "powerupHealth"
+            'powerupBomb', 'powerupSpeed', 'powerupPunch', 'powerupIceBombs',
+            'powerupStickyBombs', 'powerupShield', 'powerupImpactBombs',
+            'powerupHealth'
     ]:
         ba.gettexture(tname)
     for sname in [
-            "powerup01", "boxDrop", "boxingBell", "scoreHit01", "scoreHit02",
-            "dripity", "spawn", "gong"
+            'powerup01', 'boxDrop', 'boxingBell', 'scoreHit01', 'scoreHit02',
+            'dripity', 'spawn', 'gong'
     ]:
         ba.getsound(sname)
-    from bastd.actor import bomb
-    bomb.get_factory()
+    from bastd.actor.bomb import BombFactory
+    BombFactory.get()
     ba.timer(0.1, _preload3)
 
 
 def _preload3() -> None:
-    for mname in ["bomb", "bombSticky", "impactBomb"]:
+    for mname in ['bomb', 'bombSticky', 'impactBomb']:
         ba.getmodel(mname)
     for tname in [
-            "bombColor", "bombColorIce", "bombStickyColor", "impactBombColor",
-            "impactBombColorLit"
+            'bombColor', 'bombColorIce', 'bombStickyColor', 'impactBombColor',
+            'impactBombColorLit'
     ]:
         ba.gettexture(tname)
-    for sname in ["freeze", "fuse01", "activateBeep", "warnBeep"]:
+    for sname in ['freeze', 'fuse01', 'activateBeep', 'warnBeep']:
         ba.getsound(sname)
     spaz.get_factory()
     ba.timer(0.2, _preload4)
@@ -906,8 +906,8 @@ def _preload4() -> None:
         ba.getmodel(mname)
     for sname in ['metalHit', 'metalSkid', 'refWhistle', 'achievement']:
         ba.getsound(sname)
-    from bastd.actor.flag import get_factory
-    get_factory()
+    from bastd.actor.flag import FlagFactory
+    FlagFactory.get()
 
 
 class MainMenuSession(ba.Session):
@@ -920,15 +920,15 @@ class MainMenuSession(ba.Session):
 
         super().__init__([self._activity_deps])
         self._locked = False
-        self.set_activity(ba.new_activity(MainMenuActivity))
+        self.setactivity(ba.newactivity(MainMenuActivity))
 
     def on_activity_end(self, activity: ba.Activity, results: Any) -> None:
         if self._locked:
             _ba.unlock_all_input()
 
         # Any ending activity leads us into the main menu one.
-        self.set_activity(ba.new_activity(MainMenuActivity))
+        self.setactivity(ba.newactivity(MainMenuActivity))
 
-    def on_player_request(self, player: ba.Player) -> bool:
+    def on_player_request(self, player: ba.SessionPlayer) -> bool:
         # Reject all player requests.
         return False

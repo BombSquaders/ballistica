@@ -24,8 +24,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-import _ba
 import ba
+import _ba
 
 if TYPE_CHECKING:
     from typing import Optional, List
@@ -88,8 +88,8 @@ class PlaylistEditWindow(ba.Window):
                       text=ba.Lstr(resource=self._r + '.titleText'),
                       color=ba.app.title_color,
                       scale=1.05,
-                      h_align="center",
-                      v_align="center",
+                      h_align='center',
+                      v_align='center',
                       maxwidth=270)
 
         v = self._height - 115.0
@@ -110,9 +110,9 @@ class PlaylistEditWindow(ba.Window):
             parent=self._root_widget,
             position=(210 + x_inset, v + 7),
             size=(self._scroll_width - 53, 43),
-            text=self._editcontroller.get_name(),
-            h_align="left",
-            v_align="center",
+            text=self._editcontroller.getname(),
+            h_align='left',
+            v_align='center',
             max_chars=40,
             autoselect=True,
             color=(0.9, 0.9, 0.9, 1.0),
@@ -253,14 +253,14 @@ class PlaylistEditWindow(ba.Window):
                                    get_root_widget())
 
     def _add(self) -> None:
-        # store list name then tell the session to perform an add
-        self._editcontroller.set_name(
+        # Store list name then tell the session to perform an add.
+        self._editcontroller.setname(
             cast(str, ba.textwidget(query=self._text_field)))
         self._editcontroller.add_game_pressed()
 
     def _edit(self) -> None:
-        # store list name then tell the session to perform an add
-        self._editcontroller.set_name(
+        # Store list name then tell the session to perform an add.
+        self._editcontroller.setname(
             cast(str, ba.textwidget(query=self._text_field)))
         self._editcontroller.edit_game_pressed()
 
@@ -268,8 +268,9 @@ class PlaylistEditWindow(ba.Window):
         from bastd.ui.playlist import customizebrowser as cb
         new_name = cast(str, ba.textwidget(query=self._text_field))
         if (new_name != self._editcontroller.get_existing_playlist_name()
-                and new_name in ba.app.config[
-                    self._editcontroller.get_config_name() + ' Playlists']):
+                and new_name
+                in ba.app.config[self._editcontroller.get_config_name() +
+                                 ' Playlists']):
             ba.screenmessage(
                 ba.Lstr(resource=self._r + '.cantSaveAlreadyExistsText'))
             ba.playsound(ba.getsound('error'))
@@ -282,6 +283,7 @@ class PlaylistEditWindow(ba.Window):
                 ba.Lstr(resource=self._r + '.cantSaveEmptyListText'))
             ba.playsound(ba.getsound('error'))
             return
+
         # We couldn't actually replace the default list anyway, but disallow
         # using its exact name to avoid confusion.
         if new_name == self._editcontroller.get_default_list_name().evaluate():
@@ -290,7 +292,7 @@ class PlaylistEditWindow(ba.Window):
             ba.playsound(ba.getsound('error'))
             return
 
-        # if we had an old one, delete it
+        # If we had an old one, delete it.
         if self._editcontroller.get_existing_playlist_name() is not None:
             _ba.add_transaction({
                 'type':
@@ -325,6 +327,7 @@ class PlaylistEditWindow(ba.Window):
 
     def _refresh(self) -> None:
         from ba.internal import getclass
+
         # Need to grab this here as rebuilding the list will
         # change it otherwise.
         old_selection_index = self._editcontroller.get_selected_index()
@@ -335,7 +338,7 @@ class PlaylistEditWindow(ba.Window):
 
             try:
                 cls = getclass(pentry['type'], subclassof=ba.GameActivity)
-                desc = cls.get_config_display_string(pentry)
+                desc = cls.get_settings_display_string(pentry)
             except Exception:
                 ba.print_exception()
                 desc = "(invalid: '" + pentry['type'] + "')"
@@ -352,7 +355,8 @@ class PlaylistEditWindow(ba.Window):
                                  v_align='center',
                                  selectable=True)
             ba.widget(edit=txtw, show_buffer_top=50, show_buffer_bottom=50)
-            # wanna be able to jump up to the text field from the top one
+
+            # Wanna be able to jump up to the text field from the top one.
             if index == 0:
                 ba.widget(edit=txtw, up_widget=self._text_field)
             self._list_widgets.append(txtw)

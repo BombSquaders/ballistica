@@ -70,7 +70,7 @@ def explicit_bool(value: bool) -> bool:
     return value
 
 
-def get_localconfig(projroot: Path) -> Dict[str, Any]:
+def getlocalconfig(projroot: Path) -> Dict[str, Any]:
     """Return a project's localconfig contents (or default if missing)."""
     localconfig: Dict[str, Any]
     try:
@@ -81,7 +81,7 @@ def get_localconfig(projroot: Path) -> Dict[str, Any]:
     return localconfig
 
 
-def get_config(projroot: Path) -> Dict[str, Any]:
+def getconfig(projroot: Path) -> Dict[str, Any]:
     """Return a project's config contents (or default if missing)."""
     config: Dict[str, Any]
     try:
@@ -149,7 +149,6 @@ def run(cmd: str) -> None:
     subprocess.run(cmd, shell=True, check=True)
 
 
-# 1
 def get_files_hash(filenames: Sequence[Union[str, Path]],
                    extrahash: str = '',
                    int_only: bool = False,
@@ -188,7 +187,7 @@ def _py_symbol_at_column(line: str, col: int) -> str:
     return line[start:end]
 
 
-def py_examine(filename: Path, line: int, column: int,
+def py_examine(projroot: Path, filename: Path, line: int, column: int,
                selection: Optional[str], operation: str) -> None:
     """Given file position info, performs some code inspection."""
     # pylint: disable=too-many-locals
@@ -213,7 +212,7 @@ def py_examine(filename: Path, line: int, column: int,
 
         # Insert a line after the provided one which is just the symbol so we
         # can ask for its value alone.
-        match = re.match(r"\s*", flines[line - 1])
+        match = re.match(r'\s*', flines[line - 1])
         whitespace = match.group() if match is not None else ''
         sline = whitespace + symbol + ' #@'
         flines = flines[:line] + [sline] + flines[line:]
@@ -228,7 +227,7 @@ def py_examine(filename: Path, line: int, column: int,
 
         # Insert a line after the provided one which is just the symbol so we
         # can ask for its value alone.
-        match = re.match(r"\s*", flines[line - 1])
+        match = re.match(r'\s*', flines[line - 1])
         whitespace = match.group() if match is not None else ''
         if operation == 'mypy_infer':
             sline = whitespace + 'reveal_type(' + symbol + ')'
@@ -243,7 +242,7 @@ def py_examine(filename: Path, line: int, column: int,
         with tmppath.open('w') as outfile:
             outfile.write('\n'.join(flines))
         try:
-            code.runmypy([str(tmppath)], check=False)
+            code.runmypy(projroot, [str(tmppath)], check=False)
         except Exception as exc:
             print('error running mypy:', exc)
         tmppath.unlink()

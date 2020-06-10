@@ -23,14 +23,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 from enum import Enum
 
 import _ba
 
 if TYPE_CHECKING:
-    from typing import Sequence
+    from typing import Sequence, Optional, Type, Any
     import ba
+
+
+class _UnhandledType:
+    pass
+
+
+# A special value that should be returned from handlemessage()
+# functions for unhandled message types.  This may result
+# in fallback message types being attempted/etc.
+UNHANDLED = _UnhandledType()
 
 
 @dataclass
@@ -76,6 +86,64 @@ class DieMessage:
     """
     immediate: bool = False
     how: DeathType = DeathType.GENERIC
+
+
+PlayerType = TypeVar('PlayerType', bound='ba.Player')
+
+
+class PlayerDiedMessage:
+    """A message saying a ba.Player has died.
+
+    category: Message Classes
+
+    Attributes:
+
+       killed
+          If True, the player was killed;
+          If False, they left the game or the round ended.
+
+       how
+          The particular type of death.
+    """
+    killed: bool
+    how: ba.DeathType
+
+    def __init__(self, player: ba.Player, was_killed: bool,
+                 killerplayer: Optional[ba.Player], how: ba.DeathType):
+        """Instantiate a message with the given values."""
+
+        # Invalid refs should never be passed as args.
+        assert player.exists()
+        self._player = player
+
+        # Invalid refs should never be passed as args.
+        assert killerplayer is None or killerplayer.exists()
+        self._killerplayer = killerplayer
+        self.killed = was_killed
+        self.how = how
+
+    def getkillerplayer(self,
+                        playertype: Type[PlayerType]) -> Optional[PlayerType]:
+        """Return the ba.Player responsible for the killing, if any.
+
+        Pass the Player type being used by the current game.
+        """
+        assert isinstance(self._killerplayer, (playertype, type(None)))
+        return self._killerplayer
+
+    def getplayer(self, playertype: Type[PlayerType]) -> PlayerType:
+        """Return the ba.Player that died.
+
+        The type of player for the current activity should be passed so that
+        the type-checker properly identifies the returned value as one.
+        """
+        player: Any = self._player
+        assert isinstance(player, playertype)
+
+        # We should never be delivering invalid refs.
+        # (could theoretically happen if someone holds on to us)
+        assert player.exists()
+        return player
 
 
 @dataclass
@@ -202,7 +270,6 @@ class CelebrateMessage:
     duration: float = 10.0
 
 
-@dataclass(init=False)
 class HitMessage:
     """Tells an object it has been hit in some way.
 
@@ -233,13 +300,29 @@ class HitMessage:
         self.magnitude = magnitude
         self.velocity_magnitude = velocity_magnitude
         self.radius = radius
-        self.source_player = source_player
+
+        # We should not be getting passed an invalid ref.
+        assert source_player is None or source_player.exists()
+        self._source_player = source_player
         self.kick_back = kick_back
         self.flat_damage = flat_damage
         self.hit_type = hit_type
         self.hit_subtype = hit_subtype
         self.force_direction = (force_direction
                                 if force_direction is not None else velocity)
+
+    def get_source_player(
+            self, playertype: Type[PlayerType]) -> Optional[PlayerType]:
+        """Return the source-player if one exists and is the provided type."""
+        player: Any = self._source_player
+
+        # We should not be delivering invalid refs.
+        # (we could translate to None here but technically we are changing
+        # the message delivered which seems wrong)
+        assert player is None or player.exists()
+
+        # Return the player *only* if they're the type given.
+        return player if isinstance(player, playertype) else None
 
 
 @dataclass

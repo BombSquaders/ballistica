@@ -98,8 +98,8 @@ class ProfileBrowserWindow(ba.Window):
                       maxwidth=300,
                       color=ba.app.title_color,
                       scale=0.9,
-                      h_align="center",
-                      v_align="center")
+                      h_align='center',
+                      v_align='center')
 
         if self._in_main_menu:
             ba.buttonwidget(edit=btn,
@@ -160,8 +160,8 @@ class ProfileBrowserWindow(ba.Window):
                       color=ba.app.infotextcolor,
                       maxwidth=self._width * 0.83,
                       scale=0.6,
-                      h_align="center",
-                      v_align="center")
+                      h_align='center',
+                      v_align='center')
 
         self._scrollwidget = ba.scrollwidget(parent=self._root_widget,
                                              highlight=False,
@@ -309,14 +309,14 @@ class ProfileBrowserWindow(ba.Window):
                 continue
             color, _highlight = get_player_profile_colors(p_name)
             scl = 1.1
+            tval = (account_name if p_name == '__account__' else
+                    get_player_profile_icon(p_name) + p_name)
+            assert isinstance(tval, str)
             txtw = ba.textwidget(
                 parent=self._columnwidget,
                 position=(0, 32),
                 size=((self._width - 40) / scl, 28),
-                text=ba.Lstr(
-                    value=account_name if p_name ==
-                    '__account__' else get_player_profile_icon(p_name) +
-                    p_name),
+                text=ba.Lstr(value=tval),
                 h_align='left',
                 v_align='center',
                 on_select_call=ba.WeakCall(self._select, p_name, index),

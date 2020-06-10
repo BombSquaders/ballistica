@@ -412,7 +412,7 @@ class PartyWindow(ba.Window):
         self._popup_party_member_is_host = is_host
 
     def _send_chat_message(self) -> None:
-        _ba.chat_message(cast(str, ba.textwidget(query=self._text_field)))
+        _ba.chatmessage(cast(str, ba.textwidget(query=self._text_field)))
         ba.textwidget(edit=self._text_field, text='')
 
     def close(self) -> None:
@@ -464,7 +464,6 @@ def handle_party_invite(name: str, invite_id: str) -> None:
         # FIXME: Ugly.
         # Let's store the invite-id away on the confirm window so we know if
         # we need to kill it later.
-        # noinspection PyTypeHints
         conf.party_invite_id = invite_id  # type: ignore
 
         # store a weak-ref so we can get at this later

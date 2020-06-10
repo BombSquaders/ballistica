@@ -31,13 +31,25 @@ if TYPE_CHECKING:
     from typing import List, Dict, Any
 
 # Overall version we're using for the game currently.
-PYTHON_VERSION_MAJOR = "3.7"
+PYTHON_VERSION_MAJOR = '3.7'
 
 ENABLE_OPENSSL = True
 
 
 def build_apple(arch: str, debug: bool = False) -> None:
     """Run a build for the provided apple arch (mac, ios, or tvos)."""
+    import platform
+    import subprocess
+    from efro.error import CleanError
+
+    # IMPORTANT; seems we currently wind up building against /usr/local gettext
+    # stuff. Hopefully the maintainer fixes this, but for now I need to
+    # remind myself to blow it away while building.
+    if 'MacBook-Fro' in platform.node():
+        if (subprocess.run('which gettext', shell=True,
+                           check=False).returncode == 0):
+            raise CleanError('NEED TO TEMP-KILL GETTEXT')
+
     builddir = 'build/python_apple_' + arch + ('_debug' if debug else '')
     efrotools.run('rm -rf "' + builddir + '"')
     efrotools.run('mkdir -p build')
@@ -47,7 +59,10 @@ def build_apple(arch: str, debug: bool = False) -> None:
     os.chdir(builddir)
 
     # TEMP: Check out a particular commit while the branch head is broken.
-    # efrotools.run('git checkout 1a9c71dca298c03517e8236b81cf1d9c8c521cbf')
+    # We can actually fix this to use the current one, but something
+    # broke in the underlying build even on old commits so keeping it
+    # locked for now...
+    # efrotools.run('git checkout bf1ed73d0d5ff46862ba69dd5eb2ffaeff6f19b6')
     efrotools.run(f'git checkout {PYTHON_VERSION_MAJOR}')
 
     # On mac we currently have to add the _scproxy module or urllib will
@@ -143,25 +158,25 @@ def build_apple(arch: str, debug: bool = False) -> None:
         ('build/$2/Support/OpenSSL ' if ENABLE_OPENSSL else '') +
         'build/$2/Support/XZ $$(PYTHON_DIR-$1)/Makefile\n#' + srctxt)
     srctxt = ('dist/Python-$(PYTHON_VER)-$1-support.'
-              'b$(BUILD_NUMBER).tar.gz: ')
+              '$(BUILD_NUMBER).tar.gz: ')
     txt = efrotools.replace_one(
         txt, srctxt,
-        'dist/Python-$(PYTHON_VER)-$1-support.b$(BUILD_NUMBER).tar.gz:'
+        'dist/Python-$(PYTHON_VER)-$1-support.$(BUILD_NUMBER).tar.gz:'
         ' $$(PYTHON_FRAMEWORK-$1)\n#' + srctxt)
 
     # Turn doc strings on; looks like it only adds a few hundred k.
     txt = txt.replace('--without-doc-strings', '--with-doc-strings')
 
-    # We're currently aiming at 10.13+ on mac
+    # Set mac/ios version reqs
     # (see issue with utimensat and futimens).
     txt = efrotools.replace_one(txt, 'MACOSX_DEPLOYMENT_TARGET=10.8',
-                                'MACOSX_DEPLOYMENT_TARGET=10.13')
+                                'MACOSX_DEPLOYMENT_TARGET=10.14')
     # And equivalent iOS (11+).
     txt = efrotools.replace_one(txt, 'CFLAGS-iOS=-mios-version-min=8.0',
-                                'CFLAGS-iOS=-mios-version-min=11.0')
+                                'CFLAGS-iOS=-mios-version-min=12.0')
     # Ditto for tvOS.
     txt = efrotools.replace_one(txt, 'CFLAGS-tvOS=-mtvos-version-min=9.0',
-                                'CFLAGS-tvOS=-mtvos-version-min=11.0')
+                                'CFLAGS-tvOS=-mtvos-version-min=12.0')
 
     if debug:
 
@@ -170,15 +185,15 @@ def build_apple(arch: str, debug: bool = False) -> None:
         dline = '--with-doc-strings --enable-ipv6 --without-ensurepip'
         splitlen = len(txt.split(dline))
         if splitlen != 3:
-            raise Exception("unexpected configure lines")
+            raise Exception('unexpected configure lines')
         txt = txt.replace(dline, '--with-pydebug ' + dline)
 
         # Debug has a different name.
-        # (Currently expect to replace 13 instances of this).
+        # (Currently expect to replace 12 instances of this).
         dline = 'python$(PYTHON_VER)m'
         splitlen = len(txt.split(dline))
-        if splitlen != 14:
-            raise Exception("unexpected configure lines")
+        if splitlen != 13:
+            raise RuntimeError(f'Unexpected configure line count {splitlen}.')
         txt = txt.replace(dline, 'python$(PYTHON_VER)dm')
 
     efrotools.writefile('Makefile', txt)
@@ -214,7 +229,7 @@ def build_android(rootdir: str, arch: str, debug: bool = False) -> None:
     # gettext homebrew formula.
     if (subprocess.run('which autopoint', shell=True, check=False).returncode
             != 0):
-        print("Updating path for mac autopoint...")
+        print('Updating path for mac autopoint...')
         appath = subprocess.run('brew ls gettext | grep bin/autopoint',
                                 shell=True,
                                 check=True,
@@ -233,7 +248,7 @@ def build_android(rootdir: str, arch: str, debug: bool = False) -> None:
     # Set the packages we build.
     ftxt = efrotools.replace_one(
         ftxt, 'packages = (', "packages = ('zlib', 'sqlite', 'xz'," +
-        (" 'openssl'" if ENABLE_OPENSSL else "") + ")\n# packages = (")
+        (" 'openssl'" if ENABLE_OPENSSL else '') + ')\n# packages = (')
 
     # Don't wanna bother with gpg signing stuff.
     ftxt = efrotools.replace_one(ftxt, 'verify_source = True',
@@ -253,7 +268,7 @@ def build_android(rootdir: str, arch: str, debug: bool = False) -> None:
     ftxt = efrotools.readfile('pybuild/packages/python.py')
 
     # We currently build as a static lib.
-    ftxt = efrotools.replace_one(ftxt, "            '--enable-shared',\n", "")
+    ftxt = efrotools.replace_one(ftxt, "            '--enable-shared',\n", '')
     ftxt = efrotools.replace_one(
         ftxt, "super().__init__('https://github.com/python/cpython/')",
         "super().__init__('https://github.com/python/cpython/', branch='3.7')")
@@ -266,7 +281,7 @@ def build_android(rootdir: str, arch: str, debug: bool = False) -> None:
                                      "'./configure', '--with-pydebug',")
 
     # We don't use this stuff so lets strip it out to simplify.
-    ftxt = efrotools.replace_one(ftxt, "'--without-ensurepip',", "")
+    ftxt = efrotools.replace_one(ftxt, "'--without-ensurepip',", '')
 
     # This builds all modules as dynamic libs, but we want to be consistent
     # with our other embedded builds and just static-build the ones we
@@ -282,7 +297,7 @@ def build_android(rootdir: str, arch: str, debug: bool = False) -> None:
     efrotools.writefile('pybuild/packages/python.py', ftxt)
 
     # Set this to a particular cpython commit to target exact releases from git
-    commit = '43364a7ae01fbe4288ef42622259a0038ce1edcc'  # 3.7.6 release
+    commit = 'd7c567b08f9d7d6aef21b881340a2b72731129db'  # 3.7.7 release
 
     if commit is not None:
         ftxt = efrotools.readfile('pybuild/source.py')
@@ -290,12 +305,12 @@ def build_android(rootdir: str, arch: str, debug: bool = False) -> None:
         # Check out a particular commit right after the clone.
         ftxt = efrotools.replace_one(
             ftxt, "'git', 'clone', '--single-branch', '-b',"
-            " self.branch, self.source_url, self.dest])",
+            ' self.branch, self.source_url, self.dest])',
             "'git', 'clone', '-b',"
-            " self.branch, self.source_url, self.dest])\n"
-            "        # efro: hack to get the python we want.\n"
+            ' self.branch, self.source_url, self.dest])\n'
+            '        # efro: hack to get the python we want.\n'
             "        print('DOING URL', self.source_url)\n"
-            "        if self.source_url == "
+            '        if self.source_url == '
             "'https://github.com/python/cpython/':\n"
             "            run_in_dir(['git', 'checkout', '" + commit +
             "'], self.source_dir)")
@@ -402,7 +417,7 @@ def android_patch() -> None:
         '		[A-Z]*=*)	DEFS="$line$NL$DEFS"; continue;;')
     efrotools.writefile(fname, txt)
 
-    print("APPLIED EFROTOOLS ANDROID BUILD PATCHES.")
+    print('APPLIED EFROTOOLS ANDROID BUILD PATCHES.')
 
 
 def gather() -> None:
@@ -424,19 +439,6 @@ def gather() -> None:
     ]
     for existing_dir in existing_dirs:
         efrotools.run('rm -rf "' + existing_dir + '"')
-
-    # Build our set of site-packages that we'll bundle in addition
-    # to the base system.
-    # FIXME: Should we perhaps make this part more explicit?..
-    #  we might get unexpected changes sneaking if we're just
-    #  pulling from installed python. But then again, anytime we're doing
-    #  a new python build/gather we should expect *some* changes even if
-    #  only at the build-system level since we pull some of that directly
-    #  from latest git stuff.
-    efrotools.run('mkdir -p "assets/src/pylib-site-packages"')
-    efrotools.run('cp "/usr/local/lib/python' + PYTHON_VERSION_MAJOR +
-                  '/site-packages/typing_extensions.py"'
-                  ' "assets/src/pylib-site-packages/"')
 
     for buildtype in ['debug', 'release']:
         debug = buildtype == 'debug'

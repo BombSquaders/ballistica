@@ -37,7 +37,8 @@ class FreeForAllSession(MultiTeamSession):
 
     Category: Gameplay Classes
     """
-    _use_teams = False
+    use_teams = False
+    use_team_colors = False
     _playlist_selection_var = 'Free-for-All Playlist Selection'
     _playlist_randomize_var = 'Free-for-All Playlist Randomize'
     _playlists_var = 'Free-for-All Playlists'
@@ -68,21 +69,20 @@ class FreeForAllSession(MultiTeamSession):
         _ba.increment_analytics_count('Free-for-all session start')
         super().__init__()
 
-    def _switch_to_score_screen(self, results: ba.TeamGameResults) -> None:
+    def _switch_to_score_screen(self, results: ba.GameResults) -> None:
         # pylint: disable=cyclic-import
         from bastd.activity.drawscore import DrawScoreScreenActivity
         from bastd.activity.multiteamvictory import (
             TeamSeriesVictoryScoreScreenActivity)
         from bastd.activity.freeforallvictory import (
             FreeForAllVictoryScoreScreenActivity)
-        winners = results.get_winners()
+        winners = results.winnergroups
 
         # If there's multiple players and everyone has the same score,
         # call it a draw.
         if len(self.players) > 1 and len(winners) < 2:
-            self.set_activity(
-                _ba.new_activity(DrawScoreScreenActivity,
-                                 {'results': results}))
+            self.setactivity(
+                _ba.newactivity(DrawScoreScreenActivity, {'results': results}))
         else:
             # Award different point amounts based on number of players.
             point_awards = self.get_ffa_point_awards()
@@ -90,24 +90,24 @@ class FreeForAllSession(MultiTeamSession):
             for i, winner in enumerate(winners):
                 for team in winner.teams:
                     points = (point_awards[i] if i in point_awards else 0)
-                    team.sessiondata['previous_score'] = (
-                        team.sessiondata['score'])
-                    team.sessiondata['score'] += points
+                    team.customdata['previous_score'] = (
+                        team.customdata['score'])
+                    team.customdata['score'] += points
 
             series_winners = [
                 team for team in self.teams
-                if team.sessiondata['score'] >= self._ffa_series_length
+                if team.customdata['score'] >= self._ffa_series_length
             ]
             series_winners.sort(reverse=True,
-                                key=lambda tm: (tm.sessiondata['score']))
+                                key=lambda tm: (tm.customdata['score']))
             if (len(series_winners) == 1
                     or (len(series_winners) > 1
-                        and series_winners[0].sessiondata['score'] !=
-                        series_winners[1].sessiondata['score'])):
-                self.set_activity(
-                    _ba.new_activity(TeamSeriesVictoryScoreScreenActivity,
-                                     {'winner': series_winners[0]}))
+                        and series_winners[0].customdata['score'] !=
+                        series_winners[1].customdata['score'])):
+                self.setactivity(
+                    _ba.newactivity(TeamSeriesVictoryScoreScreenActivity,
+                                    {'winner': series_winners[0]}))
             else:
-                self.set_activity(
-                    _ba.new_activity(FreeForAllVictoryScoreScreenActivity,
-                                     {'results': results}))
+                self.setactivity(
+                    _ba.newactivity(FreeForAllVictoryScoreScreenActivity,
+                                    {'results': results}))

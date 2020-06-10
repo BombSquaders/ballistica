@@ -22,21 +22,24 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
-import _ba
 from ba._freeforallsession import FreeForAllSession
 from ba._gameactivity import GameActivity
-from ba._gameresults import TeamGameResults
+from ba._gameresults import GameResults
 from ba._dualteamsession import DualTeamSession
+import _ba
 
 if TYPE_CHECKING:
     from typing import Any, Dict, Type, Sequence
     from bastd.actor.playerspaz import PlayerSpaz
     import ba
 
+PlayerType = TypeVar('PlayerType', bound='ba.Player')
+TeamType = TypeVar('TeamType', bound='ba.Team')
 
-class TeamGameActivity(GameActivity):
+
+class TeamGameActivity(GameActivity[PlayerType, TeamType]):
     """Base class for teams and free-for-all mode games.
 
     Category: Gameplay Classes
@@ -55,14 +58,14 @@ class TeamGameActivity(GameActivity):
         return (issubclass(sessiontype, DualTeamSession)
                 or issubclass(sessiontype, FreeForAllSession))
 
-    def __init__(self, settings: Dict[str, Any]):
+    def __init__(self, settings: dict):
         super().__init__(settings)
 
-        # By default we don't show kill-points in free-for-all.
+        # By default we don't show kill-points in free-for-all sessions.
         # (there's usually some activity-specific score and we don't
         # wanna confuse things)
-        if isinstance(_ba.getsession(), FreeForAllSession):
-            self._show_kill_points = False
+        if isinstance(self.session, FreeForAllSession):
+            self.show_kill_points = False
 
     def on_transition_in(self) -> None:
         # pylint: disable=cyclic-import
@@ -74,8 +77,8 @@ class TeamGameActivity(GameActivity):
         # (unless we're being run in co-op mode, in which case we leave
         # it up to them)
         if not isinstance(self.session, CoopSession):
-            # FIXME: Need an elegant way to store on session.
-            if not self.session.have_shown_controls_help_overlay:
+            attrname = '_have_shown_ctrl_help_overlay'
+            if not getattr(self.session, attrname, False):
                 delay = 4.0
                 lifespan = 10.0
                 if self.slow_motion:
@@ -85,7 +88,7 @@ class TeamGameActivity(GameActivity):
                               scale=0.8,
                               position=(380, 200),
                               bright=True).autoretain()
-                self.session.have_shown_controls_help_overlay = True
+                setattr(self.session, attrname, True)
 
     def on_begin(self) -> None:
         super().on_begin()
@@ -104,7 +107,7 @@ class TeamGameActivity(GameActivity):
             _error.print_exception()
 
     def spawn_player_spaz(self,
-                          player: ba.Player,
+                          player: PlayerType,
                           position: Sequence[float] = None,
                           angle: float = None) -> PlayerSpaz:
         """
@@ -117,13 +120,14 @@ class TeamGameActivity(GameActivity):
         if position is None:
             # In teams-mode get our team-start-location.
             if isinstance(self.session, DualTeamSession):
-                position = (self.map.get_start_position(player.team.get_id()))
+                position = (self.map.get_start_position(player.team.id))
             else:
                 # Otherwise do free-for-all spawn locations.
                 position = self.map.get_ffa_start_position(self.players)
 
         return super().spawn_player_spaz(player, position, angle)
 
+    # FIXME: need to unify these arguments with GameActivity.end()
     def end(  # type: ignore
             self,
             results: Any = None,
@@ -146,8 +150,9 @@ class TeamGameActivity(GameActivity):
         if not isinstance(session, CoopSession):
             do_announce = not self.has_ended()
             super().end(results, delay=2.0 + announce_delay, force=force)
+
             # Need to do this *after* end end call so that results is valid.
-            assert isinstance(results, TeamGameResults)
+            assert isinstance(results, GameResults)
             if do_announce and isinstance(session, MultiTeamSession):
                 session.announce_game_results(
                     self,
@@ -165,5 +170,5 @@ class TeamGameActivity(GameActivity):
                 delay = 0.0
             else:
                 delay = 2.0
-                _ba.timer(0.1, Call(_ba.playsound, _ba.getsound("boxingBell")))
+                _ba.timer(0.1, Call(_ba.playsound, _ba.getsound('boxingBell')))
             super().end(results, delay=delay, force=force)

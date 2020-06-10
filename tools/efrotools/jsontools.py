@@ -48,13 +48,13 @@ class NoIndentEncoder(json.JSONEncoder):
         del self.kwargs['indent']
         self._replacement_map: Dict = {}
 
-    def default(self, o: Any) -> Any:  # pylint: disable=method-hidden
+    def default(self, o: Any) -> Any:
         import uuid
 
         if isinstance(o, NoIndent):
             key = uuid.uuid4().hex
             self._replacement_map[key] = json.dumps(o.value, **self.kwargs)
-            return "@@%s@@" % (key, )
+            return '@@%s@@' % (key, )
         return super(NoIndentEncoder, self).default(o)
 
     def encode(self, o: Any) -> Any:

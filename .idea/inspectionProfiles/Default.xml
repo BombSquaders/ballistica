@@ -8,6 +8,7 @@
     <inspection_tool class="ProblematicWhitespace" enabled="true" level="WARNING" enabled_by_default="true">
       <scope name="NonPython" level="WARNING" enabled="false" />
     </inspection_tool>
+    <inspection_tool class="PyArgumentListInspection" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="PyBroadExceptionInspection" enabled="false" level="WEAK WARNING" enabled_by_default="false" />
     <inspection_tool class="PyMethodMayBeStaticInspection" enabled="true" level="INFORMATION" enabled_by_default="true" />
     <inspection_tool class="PyPep8Inspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
@@ -32,6 +33,7 @@
           <option value="E125" />
           <option value="E128" />
           <option value="E741" />
+          <option value="E402" />
         </list>
       </option>
     </inspection_tool>
@@ -48,8 +50,9 @@
       <scope name="UncheckedPython" level="WEAK WARNING" enabled="false" />
     </inspection_tool>
     <inspection_tool class="PyTypeCheckerInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyTypeHintsInspection" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="PyUnreachableCodeInspection" enabled="false" level="WARNING" enabled_by_default="false" />
-    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="false">
       <scope name="PyIgnoreUnresolved" level="WARNING" enabled="false">
         <option name="ignoredIdentifiers">
           <list>

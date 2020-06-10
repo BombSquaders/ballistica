@@ -47,12 +47,16 @@ disable=bad-continuation
 #   with having a bunch of optional args in some cases.
 # similarities
 #   Not gonna touch this for now; maybe later. Bigger fish to fry.
+# not-callable
+#   Seeming to get a number of false positives for this, and mypy covers
+#   this case well.
 disable=broad-except,
         too-few-public-methods,
         no-self-use,
         too-many-instance-attributes,
         too-many-arguments,
-        similarities
+        similarities,
+        not-callable
 
 # We want to know whenever we can get rid of suppression statements.
 enable=useless-suppression
@@ -75,6 +79,7 @@ good-names=i,
            v2,
            ex,
            Run,
+           id,
            T,
            S,
            U,
@@ -102,3 +107,7 @@ max-parents=10
 [IMPORTS]
 # We do quite a bit of this. Perhaps can reconsider if its a good idea later.
 disable=import-outside-toplevel
+
+[STRING]
+# PEP-8 says to be consistent with quotes; let's remind ourself...
+check-quote-consistency=yes

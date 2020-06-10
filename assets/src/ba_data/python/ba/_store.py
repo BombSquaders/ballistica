@@ -56,7 +56,7 @@ def get_store_item_name_translated(item_name: str) -> ba.Lstr:
         return gametype.get_display_string()
     if item_name.startswith('icons.'):
         return _lang.Lstr(resource='editProfileWindow.iconText')
-    raise Exception('unrecognized item: ' + item_name)
+    raise ValueError('unrecognized item: ' + item_name)
 
 
 def get_store_item_display_size(item_name: str) -> Tuple[float, float]:
@@ -494,7 +494,7 @@ def get_available_sale_time(tab: str) -> Optional[int]:
             assert app.pro_sale_start_val is not None
             val: Optional[int] = max(
                 0, app.pro_sale_start_val -
-                (int(_ba.time(TimeType.REAL, TimeFormat.MILLISECONDS)) -
+                (_ba.time(TimeType.REAL, TimeFormat.MILLISECONDS) -
                  app.pro_sale_start_time))
 
             # Keep the value in the config up to date. I suppose we should

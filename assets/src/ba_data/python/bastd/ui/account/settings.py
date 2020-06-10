@@ -140,8 +140,8 @@ class AccountSettingsWindow(ba.Window):
                       text=ba.Lstr(resource=self._r + '.titleText'),
                       color=ba.app.title_color,
                       maxwidth=self._width - 340,
-                      h_align="center",
-                      v_align="center")
+                      h_align='center',
+                      v_align='center')
 
         self._scrollwidget = ba.scrollwidget(
             parent=self._root_widget,
@@ -213,22 +213,22 @@ class AccountSettingsWindow(ba.Window):
         show_signing_in_text = account_state == 'signing_in'
         signing_in_text_space = 80.0
 
-        show_google_play_sign_in_button = (
-            account_state == 'signed_out'
-            and 'Google Play' in self._show_sign_in_buttons)
-        show_game_circle_sign_in_button = (
-            account_state == 'signed_out'
-            and 'Game Circle' in self._show_sign_in_buttons)
+        show_google_play_sign_in_button = (account_state == 'signed_out'
+                                           and 'Google Play'
+                                           in self._show_sign_in_buttons)
+        show_game_circle_sign_in_button = (account_state == 'signed_out'
+                                           and 'Game Circle'
+                                           in self._show_sign_in_buttons)
         show_ali_sign_in_button = (account_state == 'signed_out'
                                    and 'Ali' in self._show_sign_in_buttons)
         show_test_sign_in_button = (account_state == 'signed_out'
                                     and 'Test' in self._show_sign_in_buttons)
-        show_device_sign_in_button = (account_state == 'signed_out' and
-                                      'Local' in self._show_sign_in_buttons)
+        show_device_sign_in_button = (account_state == 'signed_out' and 'Local'
+                                      in self._show_sign_in_buttons)
         sign_in_button_space = 70.0
 
-        show_game_service_button = (
-            self._signed_in and account_type in ['Game Center', 'Game Circle'])
+        show_game_service_button = (self._signed_in and account_type
+                                    in ['Game Center', 'Game Circle'])
         game_service_button_space = 60.0
 
         show_linked_accounts_text = (self._signed_in
@@ -236,9 +236,9 @@ class AccountSettingsWindow(ba.Window):
                                          'allowAccountLinking2', False))
         linked_accounts_text_space = 60.0
 
-        show_achievements_button = (self._signed_in and
-                                    account_type in ('Google Play', 'Alibaba',
-                                                     'Local', 'OUYA', 'Test'))
+        show_achievements_button = (self._signed_in and account_type
+                                    in ('Google Play', 'Alibaba', 'Local',
+                                        'OUYA', 'Test'))
         achievements_button_space = 60.0
 
         show_achievements_text = (self._signed_in
@@ -268,9 +268,8 @@ class AccountSettingsWindow(ba.Window):
         show_unlink_accounts_button = show_link_accounts_button
         unlink_accounts_button_space = 90.0
 
-        show_sign_out_button = (
-            self._signed_in
-            and account_type in ['Test', 'Local', 'Google Play'])
+        show_sign_out_button = (self._signed_in and account_type
+                                in ['Test', 'Local', 'Google Play'])
         sign_out_button_space = 70.0
 
         if self._subcontainer is not None:
@@ -347,8 +346,8 @@ class AccountSettingsWindow(ba.Window):
                 color=(0.5, 0.5, 0.6),
                 maxwidth=self._sub_width * 0.9,
                 flatness=1.0,
-                h_align="center",
-                v_align="center")
+                h_align='center',
+                v_align='center')
             v -= local_signed_in_as_space * 0.4
 
         self._account_name_text: Optional[ba.Widget]
@@ -364,8 +363,8 @@ class AccountSettingsWindow(ba.Window):
                           scale=0.9,
                           color=ba.app.title_color,
                           maxwidth=self._sub_width * 0.9,
-                          h_align="center",
-                          v_align="center")
+                          h_align='center',
+                          v_align='center')
             v -= signed_in_as_space * 0.4
             self._account_name_text = ba.textwidget(
                 parent=self._subcontainer,
@@ -375,8 +374,8 @@ class AccountSettingsWindow(ba.Window):
                 maxwidth=self._sub_width * 0.9,
                 res_scale=1.5,
                 color=(1, 1, 1, 1),
-                h_align="center",
-                v_align="center")
+                h_align='center',
+                v_align='center')
             self._refresh_account_name_text()
             v -= signed_in_as_space * 0.4
         else:
@@ -413,8 +412,8 @@ class AccountSettingsWindow(ba.Window):
                           scale=0.9,
                           color=(0.75, 0.7, 0.8),
                           maxwidth=self._sub_width * 0.8,
-                          h_align="center",
-                          v_align="center")
+                          h_align='center',
+                          v_align='center')
 
         if show_signing_in_text:
             v -= signing_in_text_space
@@ -428,8 +427,8 @@ class AccountSettingsWindow(ba.Window):
                 scale=0.9,
                 color=(0, 1, 0),
                 maxwidth=self._sub_width * 0.8,
-                h_align="center",
-                v_align="center")
+                h_align='center',
+                v_align='center')
 
         if show_google_play_sign_in_button:
             button_width = 350
@@ -628,8 +627,8 @@ class AccountSettingsWindow(ba.Window):
             elif account_type == 'Game Circle':
                 account_type_name = ba.Lstr(resource='gameCircleText')
             else:
-                raise Exception("unknown account type: '" + str(account_type) +
-                                "'")
+                raise ValueError("unknown account type: '" +
+                                 str(account_type) + "'")
             self._game_service_button = btn = ba.buttonwidget(
                 parent=self._subcontainer,
                 position=((self._sub_width - button_width) * 0.5, v),
@@ -659,8 +658,8 @@ class AccountSettingsWindow(ba.Window):
                 scale=0.9,
                 color=(0.75, 0.7, 0.8),
                 maxwidth=self._sub_width * 0.8,
-                h_align="center",
-                v_align="center")
+                h_align='center',
+                v_align='center')
             v -= achievements_text_space * 0.5
         else:
             self._achievements_text = None
@@ -729,8 +728,8 @@ class AccountSettingsWindow(ba.Window):
                 scale=0.9,
                 color=(0.75, 0.7, 0.8),
                 maxwidth=self._sub_width * 0.8,
-                h_align="center",
-                v_align="center")
+                h_align='center',
+                v_align='center')
             v -= campaign_progress_space * 0.5
             self._refresh_campaign_progress_text()
         else:
@@ -747,8 +746,8 @@ class AccountSettingsWindow(ba.Window):
                                                color=(0.75, 0.7, 0.8),
                                                maxwidth=self._sub_width * 0.8,
                                                flatness=1.0,
-                                               h_align="center",
-                                               v_align="center")
+                                               h_align='center',
+                                               v_align='center')
             v -= tickets_space * 0.5
             self._refresh_tickets_text()
 
@@ -796,8 +795,8 @@ class AccountSettingsWindow(ba.Window):
                 scale=0.9,
                 color=(0.75, 0.7, 0.8),
                 maxwidth=self._sub_width * 0.95,
-                h_align="center",
-                v_align="center")
+                h_align='center',
+                v_align='center')
             v -= linked_accounts_text_space * 0.2
             self._update_linked_accounts_text()
         else:
@@ -969,13 +968,13 @@ class AccountSettingsWindow(ba.Window):
                                          ('${A}', accounts_str)]))
 
     def _refresh_campaign_progress_text(self) -> None:
-        from ba.internal import get_campaign
+        from ba.internal import getcampaign
         if self._campaign_progress_text is None:
             return
         p_str: Union[str, ba.Lstr]
         try:
-            campaign = get_campaign('Default')
-            levels = campaign.get_levels()
+            campaign = getcampaign('Default')
+            levels = campaign.levels
             levels_complete = sum((1 if l.complete else 0) for l in levels)
 
             # Last level cant be completed; hence the -1;
@@ -1042,7 +1041,7 @@ class AccountSettingsWindow(ba.Window):
         # pylint: disable=cyclic-import
         from bastd.ui.profile import browser as pbrowser
         self._save_state()
-        ba.containerwidget(edit=self._root_widget, transition="out_left")
+        ba.containerwidget(edit=self._root_widget, transition='out_left')
         pbrowser.ProfileBrowserWindow(
             origin_widget=self._player_profiles_button)
 
@@ -1072,14 +1071,14 @@ class AccountSettingsWindow(ba.Window):
 
     def _reset_progress(self) -> None:
         try:
-            from ba.internal import get_campaign
+            from ba.internal import getcampaign
             # FIXME: This would need to happen server-side these days.
             if self._can_reset_achievements:
                 ba.app.config['Achievements'] = {}
                 _ba.reset_achievements()
-            campaign = get_campaign('Default')
+            campaign = getcampaign('Default')
             campaign.reset()  # also writes the config..
-            campaign = get_campaign('Challenges')
+            campaign = getcampaign('Challenges')
             campaign.reset()  # also writes the config..
         except Exception:
             ba.print_exception('exception resetting co-op campaign progress')
@@ -1106,7 +1105,7 @@ class AccountSettingsWindow(ba.Window):
             elif sel == self._scrollwidget:
                 sel_name = 'Scroll'
             else:
-                raise Exception("unrecognized selection")
+                raise ValueError('unrecognized selection')
             ba.app.window_states[self.__class__.__name__] = sel_name
         except Exception:
             ba.print_exception('exception saving state for', self.__class__)

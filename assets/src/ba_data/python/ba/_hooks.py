@@ -21,11 +21,11 @@
 """Snippets of code for use by the internal C++ layer.
 
 History: originally I would dynamically compile/eval bits of Python text
-from within C++ code, but the major downside there was that I would
-never catch code breakage until the code was next run.  By defining all
-snippets I use here and then capturing references to them all at launch
-I can verify everything I'm looking for exists and pylint can do
-its magic on this file.
+from within C++ code, but the major downside there was that none of that was
+type-checked so if names or arguments changed I would never catch code breakage
+until the code was next run.  By defining all snippets I use here and then
+capturing references to them all at launch I can immediately verify everything
+I'm looking for exists and pylint/mypy can do their magic on this file.
 """
 # (most of these are self-explanatory)
 # pylint: disable=missing-function-docstring
@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING
 import _ba
 
 if TYPE_CHECKING:
-    from typing import List, Sequence, Optional
+    from typing import List, Sequence, Optional, Dict, Any
     import ba
 
 
@@ -137,8 +137,12 @@ def orientation_reset_message() -> None:
                       color=(0, 1, 0))
 
 
-def handle_app_resume() -> None:
-    _ba.app.handle_app_resume()
+def on_app_pause() -> None:
+    _ba.app.on_app_pause()
+
+
+def on_app_resume() -> None:
+    _ba.app.on_app_resume()
 
 
 def launch_main_menu_session() -> None:
@@ -178,9 +182,6 @@ def purchases_restored_message() -> None:
 def dismiss_wii_remotes_window() -> None:
     call = _ba.app.dismiss_wii_remotes_window_call
     if call is not None:
-        # Weird; this seems to trigger pylint only sometimes.
-        # pylint: disable=useless-suppression
-        # pylint: disable=not-callable
         call()
 
 
@@ -268,7 +269,7 @@ def read_config() -> None:
 def ui_remote_press() -> None:
     """Handle a press by a remote device that is only usable for nav."""
     from ba._lang import Lstr
-    _ba.screenmessage(Lstr(resource="internal.controllerForMenusOnlyText"),
+    _ba.screenmessage(Lstr(resource='internal.controllerForMenusOnlyText'),
                       color=(1, 0, 0))
     _ba.playsound(_ba.getsound('error'))
 
@@ -287,16 +288,12 @@ def telnet_access_request() -> None:
     TelnetAccessRequestWindow()
 
 
-def app_pause() -> None:
-    _ba.app.handle_app_pause()
-
-
 def do_quit() -> None:
     _ba.quit()
 
 
 def shutdown() -> None:
-    _ba.app.shutdown()
+    _ba.app.on_app_shutdown()
 
 
 def gc_disable() -> None:
@@ -349,3 +346,13 @@ def local_chat_message(msg: str) -> None:
 def handle_remote_achievement_list(completed_achievements: List[str]) -> None:
     from ba import _achievement
     _achievement.set_completed_achievements(completed_achievements)
+
+
+def get_player_icon(sessionplayer: ba.SessionPlayer) -> Dict[str, Any]:
+    info = sessionplayer.get_icon_info()
+    return {
+        'texture': _ba.gettexture(info['texture']),
+        'tint_texture': _ba.gettexture(info['tint_texture']),
+        'tint_color': info['tint_color'],
+        'tint2_color': info['tint2_color']
+    }

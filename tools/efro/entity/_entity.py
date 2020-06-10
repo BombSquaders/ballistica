@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, TypeVar
 
 from efro.entity._support import FieldInspector, BoundCompoundValue
 from efro.entity._value import CompoundValue
-from efro.jsonutils import ExtendedJSONEncoder, ExtendedJSONDecoder
+from efro.json import ExtendedJSONEncoder, ExtendedJSONDecoder
 
 if TYPE_CHECKING:
     from typing import Dict, Any, Type, Union, Optional
@@ -94,7 +94,7 @@ class EntityMixin:
         assert isinstance(self, CompoundValue)
         if not have_matching_fields(self, tvalue):
             raise ValueError(
-                f"Fields for target {type(tvalue)} do not match ours"
+                f'Fields for target {type(tvalue)} do not match ours'
                 f" ({type(self)}); can't copy data.")
         self.d_data = copy.deepcopy(target_data)
 
@@ -115,7 +115,7 @@ class EntityMixin:
         assert isinstance(self, CompoundValue)
         if not have_matching_fields(self, target):
             raise ValueError(
-                f"Fields for target {type(target)} do not match ours"
+                f'Fields for target {type(target)} do not match ours'
                 f" ({type(self)}); can't steal data.")
         assert target.d_data is not None
         self.d_data = target.d_data
@@ -162,12 +162,11 @@ class EntityMixin:
                 cls=ExtendedJSONEncoder)
 
         # When not doing pretty, go for quick and compact.
-        return json.dumps(
-            data,
-            separators=(',', ':'),
-            sort_keys=(sort_keys_override
-                       if sort_keys_override is not None else False),
-            cls=ExtendedJSONEncoder)
+        return json.dumps(data,
+                          separators=(',', ':'),
+                          sort_keys=(sort_keys_override if sort_keys_override
+                                     is not None else False),
+                          cls=ExtendedJSONEncoder)
 
     @staticmethod
     def json_loads(s: str) -> Any:

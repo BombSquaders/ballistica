@@ -83,7 +83,7 @@ def get_league_rank_points(data: Optional[Dict[str, Any]],
         assert isinstance(trophies_total, int)
         return trophies_total
     if subset is not None:
-        raise Exception("invalid subset value: " + str(subset))
+        raise ValueError('invalid subset value: ' + str(subset))
 
     if data['p']:
         pro_mult = 1.0 + float(
@@ -159,9 +159,11 @@ def have_pro() -> bool:
     """Return whether pro is currently unlocked."""
 
     # Check our tickets-based pro upgrade and our two real-IAP based upgrades.
+    # Also unlock this stuff in ballistica-core builds.
     return bool(
         _ba.get_purchased('upgrades.pro') or _ba.get_purchased('static.pro')
-        or _ba.get_purchased('static.pro_sale'))
+        or _ba.get_purchased('static.pro_sale')
+        or 'ballistica' + 'core' == _ba.appname())
 
 
 def have_pro_options() -> bool:

@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 # -----------------------------------------------------------------------------
-"""Exec related functionality shared between all efro components."""
+"""Call related functionality shared between all efro components."""
 
 from __future__ import annotations
 
@@ -52,17 +52,17 @@ class CallbackSet(Generic[CT]):
 
         def run(self, *args, **keywds):
             """Run all callbacks."""
-            print("HELLO FROM RUN", *args, **keywds)
+            print('HELLO FROM RUN', *args, **keywds)
 
     def __init__(self) -> None:
-        print("CallbackSet()")
+        print('CallbackSet()')
 
     def __del__(self) -> None:
-        print("~CallbackSet()")
+        print('~CallbackSet()')
 
     def add(self, call: CT) -> None:
         """Add a callback to be run."""
-        print("Would add call", call)
+        print('Would add call', call)
 
 
 # Define Call() which can be used in type-checking call-wrappers that behave
@@ -170,8 +170,9 @@ if TYPE_CHECKING:
         """Seven argument variant of call wrapper"""
 
         def __init__(
-            self, _call: Callable[[In1T, In2T, In3T, In4T, In5T, In6T, In7T],
-                                  OutT]):
+                self,
+                _call: Callable[[In1T, In2T, In3T, In4T, In5T, In6T, In7T],
+                                OutT]):
             ...
 
         def __call__(self, _arg1: In1T, _arg2: In2T, _arg3: In3T, _arg4: In4T,

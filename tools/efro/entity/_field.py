@@ -26,9 +26,9 @@ import copy
 import logging
 from typing import TYPE_CHECKING, Generic, TypeVar, overload
 
-from efro.entity._support import (BaseField, BoundCompoundValue,
-                                  BoundListField, BoundDictField,
-                                  BoundCompoundListField,
+from efro.entity._base import BaseField
+from efro.entity._support import (BoundCompoundValue, BoundListField,
+                                  BoundDictField, BoundCompoundListField,
                                   BoundCompoundDictField)
 from efro.entity.util import have_matching_fields
 
@@ -158,8 +158,8 @@ class CompoundField(BaseField, Generic[TC]):
             raise ValueError(f"Can't assign from unbound object {value}")
         if self.d_value.get_fields() != value1.get_fields():
             raise ValueError(f"Can't assign to {self.d_value} from"
-                             f" incompatible type {value.d_value}; "
-                             f"sub-fields do not match.")
+                             f' incompatible type {value.d_value}; '
+                             f'sub-fields do not match.')
 
         # If we're allowing this to go through, we can simply copy the
         # data from the passed in value. The fields match so it should

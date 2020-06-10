@@ -61,8 +61,8 @@ class ReportPlayerWindow(ba.Window):
                       size=(0, 0),
                       color=(1, 1, 1, 0.8),
                       scale=1.2,
-                      h_align="center",
-                      v_align="center",
+                      h_align='center',
+                      v_align='center',
                       text=ba.Lstr(resource='reportThisPlayerReasonText'),
                       maxwidth=self._width * 0.85)
         ba.buttonwidget(parent=self._root_widget,
@@ -87,7 +87,7 @@ class ReportPlayerWindow(ba.Window):
         })
         body = ba.Lstr(resource='reportPlayerExplanationText').evaluate()
         ba.open_url('mailto:support@froemling.net'
-                    '?subject=BallisticaCore Player Report: ' +
+                    f'?subject={_ba.appnameupper()} Player Report: ' +
                     self._account_id + '&body=' + parse.quote(body))
         self.close()
 
@@ -100,7 +100,7 @@ class ReportPlayerWindow(ba.Window):
         })
         body = ba.Lstr(resource='reportPlayerExplanationText').evaluate()
         ba.open_url('mailto:support@froemling.net'
-                    '?subject=BallisticaCore Player Report: ' +
+                    f'?subject={_ba.appnameupper()} Player Report: ' +
                     self._account_id + '&body=' + parse.quote(body))
         self.close()
 

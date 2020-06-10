@@ -27,7 +27,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
-from efrotools import get_localconfig, get_config
+from efrotools import getlocalconfig, getconfig
 
 MODES = {
     'debug': {
@@ -78,8 +78,8 @@ def push_ipa(root: pathlib.Path, modename: str) -> None:
     """
 
     # Load both the local and project config data.
-    cfg = Config(**get_config(root)['push_ipa_config'])
-    lcfg = LocalConfig(**get_localconfig(root)['push_ipa_local_config'])
+    cfg = Config(**getconfig(root)['push_ipa_config'])
+    lcfg = LocalConfig(**getlocalconfig(root)['push_ipa_local_config'])
 
     if modename not in MODES:
         raise Exception('invalid mode: "' + str(modename) + '"')
@@ -93,7 +93,7 @@ def push_ipa(root: pathlib.Path, modename: str) -> None:
         capture_output=True).stdout.decode().strip()
     built_app_path = pathlib.Path(app_dir, cfg.app_bundle_name)
 
-    workdir = pathlib.Path(root, 'build', "push_ipa")
+    workdir = pathlib.Path(root, 'build', 'push_ipa')
     workdir.mkdir(parents=True, exist_ok=True)
 
     pathlib.Path(root, 'build').mkdir(parents=True, exist_ok=True)

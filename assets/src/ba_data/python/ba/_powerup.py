@@ -19,6 +19,7 @@
 # SOFTWARE.
 # -----------------------------------------------------------------------------
 """Powerup related functionality."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -31,7 +32,6 @@ if TYPE_CHECKING:
 
 @dataclass
 class PowerupMessage:
-    # noinspection PyUnresolvedReferences
     """A message telling an object to accept a powerup.
 
     Category: Message Classes
@@ -44,14 +44,14 @@ class PowerupMessage:
           The type of powerup to be granted (a string).
           See ba.Powerup.poweruptype for available type values.
 
-       source_node
+       sourcenode
           The node the powerup game from, or None otherwise.
           If a powerup is accepted, a ba.PowerupAcceptMessage should be sent
-          back to the source_node to inform it of the fact. This will generally
+          back to the sourcenode to inform it of the fact. This will generally
           cause the powerup box to make a sound and disappear or whatnot.
     """
     poweruptype: str
-    source_node: Optional[ba.Node] = None
+    sourcenode: Optional[ba.Node] = None
 
 
 @dataclass

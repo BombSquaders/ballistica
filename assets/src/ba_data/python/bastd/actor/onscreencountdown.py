@@ -79,7 +79,7 @@ class OnScreenCountdown(ba.Actor):
 
     def start(self) -> None:
         """Start the timer."""
-        globalsnode = ba.sharedobj('globals')
+        globalsnode = ba.getactivity().globalsnode
         globalsnode.connectattr('time', self.inputnode, 'time1')
         self.inputnode.time2 = (globalsnode.time +
                                 (self._timeremaining + 1) * 1000)
@@ -87,7 +87,8 @@ class OnScreenCountdown(ba.Actor):
 
     def on_expire(self) -> None:
         super().on_expire()
-        # release callbacks/refs
+
+        # Release callbacks/refs.
         self._endcall = None
 
     def _update(self, forcevalue: int = None) -> None:
@@ -105,9 +106,9 @@ class OnScreenCountdown(ba.Actor):
             self.node.scale *= 1.2
             cmb = ba.newnode('combine', owner=self.node, attrs={'size': 4})
             cmb.connectattr('output', self.node, 'color')
-            ba.animate(cmb, "input0", {0: 1.0, 0.15: 1.0}, loop=True)
-            ba.animate(cmb, "input1", {0: 1.0, 0.15: 0.5}, loop=True)
-            ba.animate(cmb, "input2", {0: 0.1, 0.15: 0.0}, loop=True)
+            ba.animate(cmb, 'input0', {0: 1.0, 0.15: 1.0}, loop=True)
+            ba.animate(cmb, 'input1', {0: 1.0, 0.15: 0.5}, loop=True)
+            ba.animate(cmb, 'input2', {0: 0.1, 0.15: 0.0}, loop=True)
             cmb.input3 = 1.0
         if tval <= 10 and not self._ended:
             ba.playsound(ba.getsound('tick'))
