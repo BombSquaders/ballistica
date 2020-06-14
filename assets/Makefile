@@ -20028,13 +20028,13 @@ EXTRAS_TARGETS_WIN_WIN32 = \
   build/windows/Win32/Lib/venv/scripts/posix/activate.fish \
   build/windows/Win32/OpenAL32.dll \
   build/windows/Win32/SDL2.dll \
-  build/windows/Win32/VC_redist.x86.exe \
   build/windows/Win32/libvorbis.dll \
   build/windows/Win32/libvorbisfile.dll \
   build/windows/Win32/ogg.dll \
   build/windows/Win32/python.exe \
   build/windows/Win32/python37.dll \
-  build/windows/Win32/pythonw.exe
+  build/windows/Win32/pythonw.exe \
+  build/windows/Win32/vc_redist.x86.exe
 
 # Rule to copy src extras to build.
 $(EXTRAS_TARGETS_WIN_WIN32) : ../.efrocachemap
@@ -20090,13 +20090,16 @@ EXTRAS_TARGETS_WIN_X64 = \
   build/windows/x64/Lib/venv/scripts/posix/activate.fish \
   build/windows/x64/OpenAL32.dll \
   build/windows/x64/SDL2.dll \
-  build/windows/x64/VC_redist.x64.exe \
   build/windows/x64/libvorbis.dll \
   build/windows/x64/libvorbisfile.dll \
+  build/windows/x64/msvcp140d.dll \
   build/windows/x64/ogg.dll \
   build/windows/x64/python.exe \
   build/windows/x64/python37.dll \
-  build/windows/x64/pythonw.exe
+  build/windows/x64/pythonw.exe \
+  build/windows/x64/vc_redist.x64.exe \
+  build/windows/x64/vcruntime140_1d.dll \
+  build/windows/x64/vcruntime140d.dll
 
 # Rule to copy src extras to build.
 $(EXTRAS_TARGETS_WIN_X64) : ../.efrocachemap
@@ -20222,7 +20225,8 @@ assets-ios: $(ASSET_TARGETS_IOS) $(ASSET_TARGETS_COMMON)
 assets-android: $(ASSET_TARGETS_ANDROID) $(ASSET_TARGETS_COMMON)
 
 # Build all assets for all platforms.
-assets: assets-cmake assets-win assets-mac assets-ios assets-android
+assets: assets-cmake assets-win-Win32 assets-win-x64 assets-mac assets-ios \
+      assets-android
 
 clean:
 	@rm -rf build
@@ -20231,5 +20235,5 @@ clean:
 .PHONY: cmake win mac ios android audio clean-audio fonts clean-fonts \
       data clean-data models clean-models \
       clean-textures scripts clean-scripts \
-      assets assets-cmake assets-win assets-mac assets-ios assets-android \
-      asset_sources clean
+      assets assets-cmake assets-win-Win32 assets-win-x64 assets-mac \
+      assets-ios assets-android asset_sources clean

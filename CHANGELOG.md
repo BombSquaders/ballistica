@@ -1,3 +1,15 @@
+### 1.5.5 (20069)
+- Cleaned up Windows version packaging.
+- More misc bug fixes.
+
+### 1.5.4 (20067)
+- Should now work properly with non-ascii paths on Windows (for real this time).
+- Note that Windows game data is now stored under 'Local' appdata instead of 'Roaming'; if you have an old install with data you want to preserve, you may want to move it over manually.
+- Misc cleanup and minor bug fixes.
+
+### 1.5.3 (20065)
+- Improved handling of non-ascii characters in file paths on windows.
+
 ### 1.5.2 (20063)
 - Fixes an issue with controls not working correctly in net-play between 1.4.x and 1.5.x.
 - Tidied up onslaught code a bit.
